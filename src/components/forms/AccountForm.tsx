@@ -101,6 +101,7 @@ export const AccountForm: React.FC<AccountFormProps> = ({ open, onOpenChange, ac
                 <SelectItem value="credit">Credit Card</SelectItem>
                 <SelectItem value="cash">Cash</SelectItem>
                 <SelectItem value="investment">Investment</SelectItem>
+                <SelectItem value="wallet">Wallet</SelectItem>
               </SelectContent>
             </Select>
           </div>
