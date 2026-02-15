@@ -15,7 +15,7 @@ export interface Account {
   created_at: string;
 }
 
-export type AccountType = 'checking' | 'savings' | 'credit' | 'cash' | 'investment';
+export type AccountType = 'checking' | 'savings' | 'credit' | 'cash' | 'investment'| 'wallet';
 
 /**
  * Category for organizing transactions
