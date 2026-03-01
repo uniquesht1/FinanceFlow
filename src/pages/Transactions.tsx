@@ -9,14 +9,10 @@ import { ArrowRightLeft } from 'lucide-react';
 import { Transaction } from '@/contexts/FinanceContext';
 import { parseISO, isValid } from 'date-fns';
 
-// ==========================================
-// Transactions Page
-// ==========================================
-
 const Transactions: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [showForm, setShowForm] = useState(false);
-  const [editTransaction, setEditTransaction] = useState<Transaction | undefined>();
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | undefined>();
 
   const initialDate = useMemo(() => {
     const dateParam = searchParams.get('date');
@@ -27,7 +23,7 @@ const Transactions: React.FC = () => {
     return undefined;
   }, [searchParams]);
 
-  const clearUrlDateParam = useCallback(() => {
+  const handleClearUrlDate = useCallback(() => {
     if (searchParams.has('date')) {
       searchParams.delete('date');
       setSearchParams(searchParams, { replace: true });
@@ -35,32 +31,38 @@ const Transactions: React.FC = () => {
   }, [searchParams, setSearchParams]);
 
   const handleEdit = (transaction: Transaction) => {
-    setEditTransaction(transaction);
-    setShowForm(true);
+    setEditingTransaction(transaction);
+    setIsFormOpen(true);
   };
 
-  const handleCloseForm = (open: boolean) => {
-    setShowForm(open);
-    if (!open) setEditTransaction(undefined);
+  const toggleForm = (open: boolean) => {
+    setIsFormOpen(open);
+    if (!open) setEditingTransaction(undefined);
   };
 
   return (
     <AppLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 max-w-5xl mx-auto">
         <PageHeader
           icon={<ArrowRightLeft className="h-6 w-6 text-primary" />}
           title="Transactions"
-          description="Manage all your transactions"
-          action={{ label: 'Add Transaction', onClick: () => setShowForm(true) }}
+          description="View and manage your financial history"
+          action={{ label: 'Add Transaction', onClick: () => toggleForm(true) }}
         />
 
-        <AccountFilter />
-        <TransactionList onEdit={handleEdit} initialDate={initialDate} onDateClear={clearUrlDateParam} />
+        <div className="space-y-4">
+          <AccountFilter />
+          <TransactionList
+            onEdit={handleEdit}
+            initialDate={initialDate}
+            onDateClear={handleClearUrlDate}
+          />
+        </div>
 
         <TransactionForm
-          open={showForm}
-          onOpenChange={handleCloseForm}
-          transaction={editTransaction}
+          open={isFormOpen}
+          onOpenChange={toggleForm}
+          transaction={editingTransaction}
         />
       </div>
     </AppLayout>
