@@ -14,13 +14,23 @@ import { Button } from '@/components/ui/button';
 import { Plus, Sparkles } from 'lucide-react';
 import { TransactionForm } from '@/components/forms/TransactionForm';
 import { LoadingPage } from '@/components/ui/loading-spinner';
+import { startOfMonth, endOfMonth, startOfYear, endOfYear, isWithinInterval, parseISO } from 'date-fns';
+
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const Dashboard: React.FC = () => {
   const { accounts, transactions, selectedAccountId, selectedCurrency, loading } = useFinance();
   const [showTransactionForm, setShowTransactionForm] = React.useState(false);
+  const [period, setPeriod] = React.useState<'this-month' | 'this-year' | 'all'>('this-month');
 
-  const { totalBalance, totalIncome, totalExpenses, currency } = useMemo(() => {
-    // Filter accounts by selected currency when "All Accounts" is selected
+  const { totalBalance, periodIncome, periodExpenses, periodTransactions, currency } = useMemo(() => {
+    const now = new Date();
     const currencyFilteredAccounts = selectedAccountId
       ? accounts.filter((a) => a.id === selectedAccountId)
       : selectedCurrency
@@ -28,113 +38,103 @@ const Dashboard: React.FC = () => {
         : accounts;
 
     const accountIds = new Set(currencyFilteredAccounts.map(a => a.id));
+    const baseTransactions = transactions.filter((t) => accountIds.has(t.account_id));
 
-    const filteredTransactions = transactions.filter((t) => accountIds.has(t.account_id));
+    const allTimeIncome = baseTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + Number(t.amount), 0);
+    const allTimeExpenses = baseTransactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount), 0);
+    const startingBalance = currencyFilteredAccounts.reduce((sum, a) => sum + Number(a.starting_balance), 0);
 
-    const startingBalance = currencyFilteredAccounts.reduce(
-      (sum, a) => sum + Number(a.starting_balance),
-      0
-    );
+    const filteredTxs = baseTransactions.filter((t) => {
+      const txDate = parseISO(t.date);
+      switch (period) {
+        case 'this-month': return isWithinInterval(txDate, { start: startOfMonth(now), end: endOfMonth(now) });
+        case 'this-year': return isWithinInterval(txDate, { start: startOfYear(now), end: endOfYear(now) });
+        default: return true;
+      }
+    });
 
-    const income = filteredTransactions
-      .filter((t) => t.type === 'income')
-      .reduce((sum, t) => sum + Number(t.amount), 0);
+    const income = filteredTxs.filter((t) => t.type === 'income').reduce((sum, t) => sum + Number(t.amount), 0);
+    const expenses = filteredTxs.filter((t) => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount), 0);
 
-    const expenses = filteredTransactions
-      .filter((t) => t.type === 'expense')
-      .reduce((sum, t) => sum + Number(t.amount), 0);
-
-    // Get currency from selected account or selected currency filter or default to USD
-    const selectedAccount = selectedAccountId 
-      ? accounts.find(a => a.id === selectedAccountId)
-      : null;
+    const selectedAccount = selectedAccountId ? accounts.find(a => a.id === selectedAccountId) : null;
     const accountCurrency = selectedAccount?.currency || selectedCurrency || 'USD';
 
     return {
-      totalBalance: startingBalance + income - expenses,
-      totalIncome: income,
-      totalExpenses: expenses,
+      totalBalance: startingBalance + allTimeIncome - allTimeExpenses,
+      periodIncome: income,
+      periodExpenses: expenses,
+      periodTransactions: filteredTxs,
       currency: accountCurrency
     };
-  }, [accounts, transactions, selectedAccountId, selectedCurrency]);
+  }, [accounts, transactions, selectedAccountId, selectedCurrency, period]);
 
-  if (loading) {
-    return (
-      <AppLayout>
-        <LoadingPage message="Loading your finances..." />
-      </AppLayout>
-    );
-  }
+  const netCashFlow = periodIncome - periodExpenses;
 
+  // Stable Layout: Sidebar stays, only inner content shows loading if needed
   return (
     <AppLayout>
-      <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-fade-up">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-              Dashboard
-              <Sparkles className="h-5 w-5 text-primary animate-pulse" />
-            </h1>
-            <p className="text-muted-foreground">Track your financial overview</p>
+      {loading && accounts.length === 0 ? (
+        <LoadingPage message="Loading your finances..." />
+      ) : (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+                Dashboard <Sparkles className="h-5 w-5 text-primary" />
+              </h1>
+              <p className="text-muted-foreground">Track your financial overview</p>
+            </div>
+            <Button onClick={() => setShowTransactionForm(true)} className="group shadow-lg shadow-primary/25">
+              <Plus className="h-4 w-4 mr-2" /> Add Transaction
+            </Button>
           </div>
-          <Button 
-            onClick={() => setShowTransactionForm(true)}
-            className="group shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all duration-300 hover:scale-105"
-          >
-            <Plus className="h-4 w-4 mr-2 transition-transform duration-200 group-hover:rotate-90" />
-            Add Transaction
-          </Button>
-        </div>
 
-        {/* Onboarding */}
-        <WelcomeCard />
+          <WelcomeCard />
 
-        {/* Account & Currency Filters */}
-        {accounts.length > 0 && (
-          <div className="space-y-3">
-            <AccountFilter />
-            <CurrencyFilter />
-          </div>
-        )}
+          {accounts.length > 0 && (
+            <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+              <div className="space-y-3 flex-1">
+                <AccountFilter />
+                <CurrencyFilter />
+              </div>
+              <div className="flex items-center gap-2 bg-card border border-border/50 p-1 rounded-lg">
+                <Select value={period} onValueChange={(v: any) => setPeriod(v)}>
+                  <SelectTrigger className="w-[140px] h-8 border-none focus:ring-0">
+                    <SelectValue placeholder="Select Period" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="this-month">This Month</SelectItem>
+                    <SelectItem value="this-year">This Year</SelectItem>
+                    <SelectItem value="all">All Time</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
 
-        {/* Balance Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="animate-fade-up" style={{ animationDelay: '100ms', animationFillMode: 'both' }}>
+          {/* Cards appear instantly (delays removed) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <BalanceCard title="Total Balance" amount={totalBalance} currency={currency} type="total" />
+            <BalanceCard title="Income" amount={periodIncome} currency={currency} type="income" />
+            <BalanceCard title="Expenses" amount={periodExpenses} currency={currency} type="expense" />
+            <BalanceCard title="Net Cash Flow" amount={netCashFlow} currency={currency} type={netCashFlow >= 0 ? 'income' : 'expense'} />
           </div>
-          <div className="animate-fade-up" style={{ animationDelay: '200ms', animationFillMode: 'both' }}>
-            <BalanceCard title="Total Income" amount={totalIncome} currency={currency} type="income" />
-          </div>
-          <div className="animate-fade-up" style={{ animationDelay: '300ms', animationFillMode: 'both' }}>
-            <BalanceCard title="Total Expenses" amount={totalExpenses} currency={currency} type="expense" />
-          </div>
-        </div>
 
-        {/* Charts & Calendar */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 animate-fade-up" style={{ animationDelay: '400ms', animationFillMode: 'both' }}>
-            <ExpenseChart />
-          </div>
-          <div className="animate-fade-up" style={{ animationDelay: '500ms', animationFillMode: 'both' }}>
-            <CategoryPieChart />
-          </div>
-          <div className="lg:col-span-2 animate-fade-up" style={{ animationDelay: '550ms', animationFillMode: 'both' }}>
-            <RecentTransactions />
-          </div>
-          <div className="animate-fade-up" style={{ animationDelay: '600ms', animationFillMode: 'both' }}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2">
+              <ExpenseChart transactions={periodTransactions} period={period} />
+            </div>
+            <CategoryPieChart transactions={periodTransactions} />
+            <div className="lg:col-span-2">
+              <RecentTransactions transactions={periodTransactions} />
+            </div>
             <TransactionCalendar />
           </div>
-        </div>
 
-        {/* Net Worth Chart */}
-        <div className="animate-fade-up" style={{ animationDelay: '700ms', animationFillMode: 'both' }}>
           <NetWorthChart />
+          <TransactionForm open={showTransactionForm} onOpenChange={setShowTransactionForm} />
         </div>
-
-        {/* Transaction Form Modal */}
-        <TransactionForm open={showTransactionForm} onOpenChange={setShowTransactionForm} />
-      </div>
+      )}
     </AppLayout>
   );
 };
