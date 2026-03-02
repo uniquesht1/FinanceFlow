@@ -43,7 +43,7 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
   }, [amount]);
 
   const getIcon = () => {
-    const iconClasses = 'h-5 w-5 transition-transform duration-300 group-hover:scale-110';
+    const iconClasses = 'h-4 w-4 transition-transform duration-300 group-hover:scale-110';
     switch (type) {
       case 'income':
         return <TrendingUp className={cn(iconClasses, 'text-emerald-500')} />;
@@ -54,40 +54,65 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
     }
   };
 
+  const getAccentColor = () => {
+    switch (type) {
+      case 'income': return 'bg-emerald-500';
+      case 'expense': return 'bg-red-500';
+      default: return 'bg-primary';
+    }
+  };
+
+  const getIconBg = () => {
+    switch (type) {
+      case 'income': return 'bg-emerald-500/10';
+      case 'expense': return 'bg-red-500/10';
+      default: return 'bg-primary/10';
+    }
+  };
+
   const getGradient = () => {
     switch (type) {
-      case 'income':
-        return 'from-emerald-500/10 to-emerald-500/5';
-      case 'expense':
-        return 'from-red-500/10 to-red-500/5';
-      default:
-        return 'from-primary/10 to-primary/5';
+      case 'income': return 'from-emerald-500/10 to-emerald-500/5';
+      case 'expense': return 'from-red-500/10 to-red-500/5';
+      default: return 'from-primary/10 to-primary/5';
+    }
+  };
+
+  const getAmountColor = () => {
+    switch (type) {
+      case 'income': return 'text-emerald-500';
+      case 'expense': return 'text-red-500';
+      default: return 'text-primary';
     }
   };
 
   return (
-    <Card 
+    <Card
       className={cn(
         'group relative overflow-hidden border-border/50 transition-all duration-300 hover:border-primary/30 hover:shadow-lg hover:shadow-primary/5 hover:-translate-y-0.5',
         className
       )}
     >
-      {/* Gradient background */}
+      {/* Colored top accent line */}
+      <div className={cn('absolute top-0 left-0 right-0 h-0.5', getAccentColor())} />
+
+      {/* Gradient background — slightly always on, intensifies on hover */}
       <div className={cn(
-        'absolute inset-0 bg-gradient-to-br opacity-0 transition-opacity duration-300 group-hover:opacity-100',
+        'absolute inset-0 bg-gradient-to-br opacity-[0.05] transition-opacity duration-300 group-hover:opacity-100',
         getGradient()
       )} />
-      
+
       <CardHeader className="relative flex flex-row items-center justify-between pb-2 space-y-0">
         <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-        {getIcon()}
+        <div className={cn('p-2 rounded-lg transition-transform duration-300 group-hover:scale-110', getIconBg())}>
+          {getIcon()}
+        </div>
       </CardHeader>
       <CardContent className="relative">
         <div
           className={cn(
             'text-xl sm:text-2xl font-bold tabular-nums transition-all duration-300',
-            type === 'income' && 'text-emerald-500',
-            type === 'expense' && 'text-red-500'
+            getAmountColor()
           )}
         >
           {type === 'expense' && amount > 0 && '-'}
