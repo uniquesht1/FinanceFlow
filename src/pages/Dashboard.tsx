@@ -93,6 +93,7 @@ const Dashboard: React.FC = () => {
     return `${periodLabel} · ${accountLabel}`;
   }, [periodLabel, selectedAccountId, accounts]);
 
+  // Stable Layout: Sidebar stays, only inner content shows loading if needed
   return (
     <AppLayout>
       {loading && accounts.length === 0 ? (
