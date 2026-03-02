@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Sparkles } from 'lucide-react';
 import { TransactionForm } from '@/components/forms/TransactionForm';
 import { LoadingPage } from '@/components/ui/loading-spinner';
-import { startOfMonth, endOfMonth, startOfYear, endOfYear, isWithinInterval, parseISO } from 'date-fns';
+import { startOfMonth, endOfMonth, startOfYear, endOfYear, isWithinInterval, parseISO, format } from 'date-fns';
 
 import {
   Select,
@@ -40,6 +40,7 @@ const Dashboard: React.FC = () => {
     const accountIds = new Set(currencyFilteredAccounts.map(a => a.id));
     const baseTransactions = transactions.filter((t) => accountIds.has(t.account_id));
 
+    // 1. BALANCE MATH: Must include ALL transactions (including transfers) to be accurate
     const allTimeIncome = baseTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + Number(t.amount), 0);
     const allTimeExpenses = baseTransactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount), 0);
     const startingBalance = currencyFilteredAccounts.reduce((sum, a) => sum + Number(a.starting_balance), 0);
@@ -53,8 +54,14 @@ const Dashboard: React.FC = () => {
       }
     });
 
-    const income = filteredTxs.filter((t) => t.type === 'income').reduce((sum, t) => sum + Number(t.amount), 0);
-    const expenses = filteredTxs.filter((t) => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount), 0);
+    // 2. INCOME/EXPENSE MATH: Exclude [Transfer] items so income/spending totals aren't inflated
+    const income = filteredTxs
+      .filter((t) => t.type === 'income' && !t.title?.startsWith('[Transfer]'))
+      .reduce((sum, t) => sum + Number(t.amount), 0);
+
+    const expenses = filteredTxs
+      .filter((t) => t.type === 'expense' && !t.title?.startsWith('[Transfer]'))
+      .reduce((sum, t) => sum + Number(t.amount), 0);
 
     const selectedAccount = selectedAccountId ? accounts.find(a => a.id === selectedAccountId) : null;
     const accountCurrency = selectedAccount?.currency || selectedCurrency || 'USD';
@@ -70,7 +77,22 @@ const Dashboard: React.FC = () => {
 
   const netCashFlow = periodIncome - periodExpenses;
 
-  // Stable Layout: Sidebar stays, only inner content shows loading if needed
+  const periodLabel = useMemo(() => {
+    const now = new Date();
+    switch (period) {
+      case 'this-month': return format(now, 'MMMM yyyy');
+      case 'this-year': return format(now, 'yyyy');
+      default: return 'All Time';
+    }
+  }, [period]);
+
+  const subtitleLabel = useMemo(() => {
+    const accountLabel = selectedAccountId
+      ? accounts.find(a => a.id === selectedAccountId)?.name || 'Account'
+      : 'All Accounts';
+    return `${periodLabel} · ${accountLabel}`;
+  }, [periodLabel, selectedAccountId, accounts]);
+
   return (
     <AppLayout>
       {loading && accounts.length === 0 ? (
@@ -82,7 +104,7 @@ const Dashboard: React.FC = () => {
               <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
                 Dashboard <Sparkles className="h-5 w-5 text-primary" />
               </h1>
-              <p className="text-muted-foreground">Track your financial overview</p>
+              <p className="text-muted-foreground text-sm">{subtitleLabel}</p>
             </div>
             <Button onClick={() => setShowTransactionForm(true)} className="group shadow-lg shadow-primary/25">
               <Plus className="h-4 w-4 mr-2" /> Add Transaction
@@ -98,8 +120,9 @@ const Dashboard: React.FC = () => {
                 <CurrencyFilter />
               </div>
               <div className="flex items-center gap-2 bg-card border border-border/50 p-1 rounded-lg">
+                <span className="text-xs text-muted-foreground pl-2 font-medium">Period</span>
                 <Select value={period} onValueChange={(v: any) => setPeriod(v)}>
-                  <SelectTrigger className="w-[140px] h-8 border-none focus:ring-0">
+                  <SelectTrigger className="w-[130px] h-8 border-none focus:ring-0" aria-label="Select time period">
                     <SelectValue placeholder="Select Period" />
                   </SelectTrigger>
                   <SelectContent>
@@ -112,7 +135,6 @@ const Dashboard: React.FC = () => {
             </div>
           )}
 
-          {/* Cards appear instantly (delays removed) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <BalanceCard title="Total Balance" amount={totalBalance} currency={currency} type="total" />
             <BalanceCard title="Income" amount={periodIncome} currency={currency} type="income" />
@@ -122,16 +144,25 @@ const Dashboard: React.FC = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
-              <ExpenseChart transactions={periodTransactions} period={period} />
+              {/* Charts should only show actual spending/income, not transfers */}
+              <ExpenseChart
+                transactions={periodTransactions.filter(t => !t.title?.startsWith('[Transfer]'))}
+                period={period}
+              />
             </div>
-            <CategoryPieChart transactions={periodTransactions} />
+            <CategoryPieChart
+              transactions={periodTransactions.filter(t => !t.title?.startsWith('[Transfer]'))}
+            />
             <div className="lg:col-span-2">
               <RecentTransactions transactions={periodTransactions} />
             </div>
-            <TransactionCalendar />
+            <div className="lg:row-span-2 h-full">
+              <TransactionCalendar />
+            </div>
+            <div className="lg:col-span-2">
+              <NetWorthChart />
+            </div>
           </div>
-
-          <NetWorthChart />
           <TransactionForm open={showTransactionForm} onOpenChange={setShowTransactionForm} />
         </div>
       )}

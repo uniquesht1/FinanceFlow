@@ -88,7 +88,25 @@ export const NetWorthChart: React.FC = () => {
     });
   }, [transactions, accounts, selectedCurrency, view]);
 
-  if (data.length === 0) return null;
+  if (data.length === 0) {
+    return (
+      <Card className="border-border/50 shadow-sm">
+        <CardHeader className="flex flex-row items-center gap-2 pb-2">
+          <TrendingUp className="h-5 w-5 text-primary" />
+          <CardTitle className="text-base font-semibold">Net Worth Trend</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[280px] flex flex-col items-center justify-center text-muted-foreground">
+            <div className="h-16 w-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+              <TrendingUp className="h-8 w-8 text-muted-foreground/50" />
+            </div>
+            <p className="font-medium">No data yet</p>
+            <p className="text-sm mt-1">Your net worth trend will appear here once you add transactions.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="border-border/50 shadow-sm transition-all hover:shadow-md">
@@ -109,7 +127,7 @@ export const NetWorthChart: React.FC = () => {
         </Select>
       </CardHeader>
       <CardContent>
-        <div className="h-[250px] w-full mt-2">
+        <div className="h-[280px] w-full mt-2">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={data} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <defs>
@@ -129,7 +147,11 @@ export const NetWorthChart: React.FC = () => {
                 tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                 axisLine={false}
                 tickLine={false}
-                tickFormatter={(value) => `${value >= 1000 ? (value / 1000).toFixed(1) + 'k' : value}`}
+                  tickFormatter={(value: number) => {
+                    const sym = selectedCurrency || 'USD';
+                    const compact = value >= 1000000 ? `${(value/1000000).toFixed(1)}M` : value >= 1000 ? `${(value/1000).toFixed(1)}k` : String(value);
+                    return `${sym} ${compact}`;
+                  }}
               />
               <Tooltip
                 contentStyle={{
