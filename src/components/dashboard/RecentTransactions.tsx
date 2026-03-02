@@ -22,7 +22,7 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({ transact
 
   return (
     <Card
-      className="col-span-full animate-fade-up border-border/50 overflow-hidden cursor-pointer hover:border-primary/50 transition-all duration-200"
+      className="animate-fade-up border-border/50 overflow-hidden cursor-pointer hover:border-primary/50 transition-all duration-200"
       onClick={handleClick}
     >
       <CardHeader className="pb-2">

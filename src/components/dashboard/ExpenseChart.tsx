@@ -12,9 +12,11 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { useFinance } from '@/contexts/FinanceContext';
 import { format, startOfYear, endOfYear, eachMonthOfInterval, isWithinInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { BarChart3, ChevronLeft, ChevronRight } from 'lucide-react';
+import { formatCurrency } from '@/lib/utils';
 
 export const ExpenseChart: React.FC = () => {
-  const { transactions } = useFinance();
+  const { transactions, selectedCurrency } = useFinance();
+  const currency = selectedCurrency || 'USD';
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
 
@@ -75,8 +77,14 @@ export const ExpenseChart: React.FC = () => {
     }
   };
 
+  const compactTick = (value: number) => {
+    if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
+    return String(value);
+  };
+
   return (
-    <Card className="col-span-full lg:col-span-2 border-border/50">
+    <Card className="border-border/50">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg font-semibold flex items-center gap-2">
@@ -106,6 +114,7 @@ export const ExpenseChart: React.FC = () => {
           <Button
             variant="ghost"
             size="icon"
+            aria-label="Previous year"
             className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8"
             onClick={goToPreviousYear}
             disabled={selectedYear <= minYear}
@@ -116,26 +125,26 @@ export const ExpenseChart: React.FC = () => {
           {/* Chart */}
           <div className="h-full px-10">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart 
-                data={chartData} 
+              <BarChart
+                data={chartData}
                 margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
               >
-                <CartesianGrid 
-                  strokeDasharray="3 3" 
-                  stroke="hsl(var(--border))" 
+                <CartesianGrid
+                  strokeDasharray="3 3"
+                  stroke="hsl(var(--border))"
                   vertical={false}
                 />
-                <XAxis 
-                  dataKey="month" 
+                <XAxis
+                  dataKey="month"
                   tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
                   axisLine={{ stroke: 'hsl(var(--border))' }}
                   tickLine={false}
                 />
-                <YAxis 
+                <YAxis
                   tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
                   axisLine={false}
                   tickLine={false}
-                  tickFormatter={(value) => `₹${value}`}
+                  tickFormatter={compactTick}
                 />
                 <Tooltip
                   contentStyle={{
@@ -145,28 +154,28 @@ export const ExpenseChart: React.FC = () => {
                     boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                     color: 'hsl(var(--foreground))',
                   }}
-                  labelStyle={{ 
+                  labelStyle={{
                     color: 'hsl(var(--foreground))',
                     fontWeight: 600,
                   }}
-                  formatter={(value: number) => [`₹${value.toFixed(2)}`, '']}
+                  formatter={(value: number) => [formatCurrency(value, currency), '']}
                 />
-                <Legend 
+                <Legend
                   wrapperStyle={{ paddingTop: '16px' }}
                   formatter={(value) => (
                     <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>
                   )}
                 />
-                <Bar 
-                  dataKey="income" 
-                  fill="#22c55e" 
-                  name="Income" 
+                <Bar
+                  dataKey="income"
+                  fill="hsl(var(--success, 142 71% 45%))"
+                  name="Income"
                   radius={[4, 4, 0, 0]}
                 />
-                <Bar 
-                  dataKey="expenses" 
-                  fill="#ef4444" 
-                  name="Expenses" 
+                <Bar
+                  dataKey="expenses"
+                  fill="hsl(var(--destructive))"
+                  name="Expenses"
                   radius={[4, 4, 0, 0]}
                 />
               </BarChart>
@@ -177,6 +186,7 @@ export const ExpenseChart: React.FC = () => {
           <Button
             variant="ghost"
             size="icon"
+            aria-label="Next year"
             className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8"
             onClick={goToNextYear}
             disabled={selectedYear >= maxYear}

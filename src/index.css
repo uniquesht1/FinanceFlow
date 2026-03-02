@@ -2,11 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ==========================================
-   Design System - FinanceFlow
-   All colors MUST be HSL.
-   ========================================== */
-
 @layer base {
   :root {
     /* Background & Foreground */
@@ -45,6 +40,10 @@
     --border: 215 20% 88%;
     --input: 215 20% 88%;
     --ring: 221 83% 53%;
+
+    /* Success (emerald green) */
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
 
     /* Radius */
     --radius: 0.5rem;
@@ -99,6 +98,9 @@
 
     --accent: 215 25% 20%;
     --accent-foreground: 210 40% 98%;
+
+    --success: 142 76% 45%;
+    --success-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
