@@ -58,7 +58,7 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
     switch (type) {
       case 'income': return 'bg-emerald-500';
       case 'expense': return 'bg-red-500';
-      default: return 'bg-primary';
+      default: return 'bg-white';
     }
   };
 
@@ -82,7 +82,7 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
     switch (type) {
       case 'income': return 'text-emerald-500';
       case 'expense': return 'text-red-500';
-      default: return 'text-primary';
+      default: return 'text-white';
     }
   };
 
