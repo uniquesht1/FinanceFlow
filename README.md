@@ -175,7 +175,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Author
 
-**Your Name**  
+**Unique Shrestha**  
 GitHub: [@uniquesht1](https://github.com/uniquesht1)  
 LinkedIn: [shresthaunique](https://www.linkedin.com/in/shresthaunique)
 ---
