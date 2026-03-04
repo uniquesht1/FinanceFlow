@@ -9,9 +9,7 @@ A modern, full-stack personal finance tracking application with real-time data s
 - Secure user authentication with Supabase Auth
 - Transaction management (create, read, update, delete)
 - Real-time financial dashboard
-- Persistent PostgreSQL database storage
 - Fully responsive design
-- Fast performance with Vite
 
 ---
 
@@ -111,8 +109,6 @@ Output directory: `dist/`
 
 ## Deployment
 
-### Deploy to Netlify
-
 1. Push code to GitHub
 2. Import repository in Netlify
 3. Configure build settings:
@@ -158,12 +154,6 @@ FinanceFlow/
 - Dark mode theme
 - Multi-currency support
 - Recurring transactions
-
----
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
