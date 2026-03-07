@@ -13,6 +13,7 @@ import { useFinance } from '@/contexts/FinanceContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { AppLayout } from '@/components/layout/AppLayout';
 
 interface Budget {
   id: string;
@@ -153,92 +154,94 @@ const Budgets: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 animate-fade-up">
-      <PageHeader
-        title="Budgets"
-        description={`Spending limits for ${primaryCurrency}`}
-        icon={<Target className="h-6 w-6 text-primary" />}
-        action={{
-          label: 'Add Budget',
-          onClick: () => { setEditBudget(null); setFormOpen(true); }
-        }}
-      />
-
-      {budgets.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="border-border/50">
-            <CardContent className="pt-4">
-              <p className="text-sm text-muted-foreground font-medium">Total Budget</p>
-              <p className="text-2xl font-bold text-foreground tabular-nums">
-                {new Intl.NumberFormat('en-US', { style: 'currency', currency: primaryCurrency }).format(totalBudget)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="border-border/50">
-            <CardContent className="pt-4">
-              <p className="text-sm text-muted-foreground font-medium">Total Spent</p>
-              <p className="text-2xl font-bold text-foreground tabular-nums">
-                {new Intl.NumberFormat('en-US', { style: 'currency', currency: primaryCurrency }).format(totalSpent)}
-              </p>
-            </CardContent>
-          </Card>
-          <Card className={overBudgetCount > 0 ? 'border-destructive/30 bg-destructive/5' : 'border-border/50'}>
-            <CardContent className="pt-4">
-              <p className="text-sm text-muted-foreground font-medium">Over Budget</p>
-              <p className={`text-2xl font-bold tabular-nums ${overBudgetCount > 0 ? 'text-destructive' : 'text-foreground'}`}>
-                {overBudgetCount} {overBudgetCount === 1 ? 'category' : 'categories'}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {budgets.length === 0 ? (
-        <EmptyState
-          icon={<Target className="h-8 w-8 text-muted-foreground/50" />}
-          title="No budgets yet"
-          description="Create your first budget to start tracking your spending limits."
-          action={
-            <Button onClick={() => { setEditBudget(null); setFormOpen(true); }} className="shadow-lg shadow-primary/25">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Budget
-            </Button>
-          }
+    <AppLayout>
+      <div className="space-y-6 animate-fade-up">
+        <PageHeader
+          title="Budgets"
+          description={`Spending limits for ${primaryCurrency}`}
+          icon={<Target className="h-6 w-6 text-primary" />}
+          action={{
+            label: 'Add Budget',
+            onClick: () => { setEditBudget(null); setFormOpen(true); }
+          }}
         />
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {budgets.map(budget => (
-            <BudgetCard
-              key={budget.id}
-              budget={budget}
-              category={categories.find(c => c.id === budget.category_id)}
-              spent={getSpentAmount(budget)}
-              currency={primaryCurrency}
-              onEdit={() => { setEditBudget(budget); setFormOpen(true); }}
-              onDelete={() => setDeleteBudget(budget)}
-            />
-          ))}
-        </div>
-      )}
 
-      <BudgetForm
-        open={formOpen}
-        onClose={() => { setFormOpen(false); setEditBudget(null); }}
-        onSubmit={editBudget ? handleUpdateBudget : handleAddBudget}
-        editBudget={editBudget}
-        existingCategoryIds={existingCategoryIds}
-      />
+        {budgets.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="border-border/50">
+              <CardContent className="pt-4">
+                <p className="text-sm text-muted-foreground font-medium">Total Budget</p>
+                <p className="text-2xl font-bold text-foreground tabular-nums">
+                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: primaryCurrency }).format(totalBudget)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="border-border/50">
+              <CardContent className="pt-4">
+                <p className="text-sm text-muted-foreground font-medium">Total Spent</p>
+                <p className="text-2xl font-bold text-foreground tabular-nums">
+                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: primaryCurrency }).format(totalSpent)}
+                </p>
+              </CardContent>
+            </Card>
+            <Card className={overBudgetCount > 0 ? 'border-destructive/30 bg-destructive/5' : 'border-border/50'}>
+              <CardContent className="pt-4">
+                <p className="text-sm text-muted-foreground font-medium">Over Budget</p>
+                <p className={`text-2xl font-bold tabular-nums ${overBudgetCount > 0 ? 'text-destructive' : 'text-foreground'}`}>
+                  {overBudgetCount} {overBudgetCount === 1 ? 'category' : 'categories'}
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
-      <ConfirmDialog
-        open={!!deleteBudget}
-        onOpenChange={() => setDeleteBudget(null)}
-        title="Delete Budget"
-        description={`Are you sure you want to delete the budget for "${categories.find(c => c.id === deleteBudget?.category_id)?.name}"?`}
-        confirmLabel="Delete"
-        onConfirm={handleDeleteBudget}
-        variant="destructive"
-      />
-    </div>
+        {budgets.length === 0 ? (
+          <EmptyState
+            icon={<Target className="h-8 w-8 text-muted-foreground/50" />}
+            title="No budgets yet"
+            description="Create your first budget to start tracking your spending limits."
+            action={
+              <Button onClick={() => { setEditBudget(null); setFormOpen(true); }} className="shadow-lg shadow-primary/25">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Budget
+              </Button>
+            }
+          />
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {budgets.map(budget => (
+              <BudgetCard
+                key={budget.id}
+                budget={budget}
+                category={categories.find(c => c.id === budget.category_id)}
+                spent={getSpentAmount(budget)}
+                currency={primaryCurrency}
+                onEdit={() => { setEditBudget(budget); setFormOpen(true); }}
+                onDelete={() => setDeleteBudget(budget)}
+              />
+            ))}
+          </div>
+        )}
+
+        <BudgetForm
+          open={formOpen}
+          onClose={() => { setFormOpen(false); setEditBudget(null); }}
+          onSubmit={editBudget ? handleUpdateBudget : handleAddBudget}
+          editBudget={editBudget}
+          existingCategoryIds={existingCategoryIds}
+        />
+
+        <ConfirmDialog
+          open={!!deleteBudget}
+          onOpenChange={() => setDeleteBudget(null)}
+          title="Delete Budget"
+          description={`Are you sure you want to delete the budget for "${categories.find(c => c.id === deleteBudget?.category_id)?.name}"?`}
+          confirmLabel="Delete"
+          onConfirm={handleDeleteBudget}
+          variant="destructive"
+        />
+      </div>
+    </AppLayout>
   );
 };
 
