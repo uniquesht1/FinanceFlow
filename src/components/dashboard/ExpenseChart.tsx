@@ -50,11 +50,11 @@ export const ExpenseChart: React.FC = () => {
       });
 
       const income = monthTransactions
-        .filter((t) => t.type === 'income')
+        .filter((t) => t.type === 'income' && !t.title?.startsWith('[Transfer]'))
         .reduce((sum, t) => sum + Number(t.amount), 0);
 
       const expenses = monthTransactions
-        .filter((t) => t.type === 'expense')
+        .filter((t) => t.type === 'expense' && !t.title?.startsWith('[Transfer]'))
         .reduce((sum, t) => sum + Number(t.amount), 0);
 
       return {
