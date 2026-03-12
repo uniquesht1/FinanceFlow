@@ -13,9 +13,16 @@ export interface Account {
   starting_balance: number;
   currency: string;
   created_at: string;
+  current_balance: number;
 }
 
-export type AccountType = 'checking' | 'savings' | 'credit' | 'cash' | 'investment'| 'wallet';
+export type AccountType =
+  | "checking"
+  | "savings"
+  | "credit"
+  | "cash"
+  | "investment"
+  | "wallet";
 
 /**
  * Category for organizing transactions
@@ -32,7 +39,7 @@ export interface Category {
 /**
  * Transaction type - income or expense
  */
-export type TransactionType = 'income' | 'expense';
+export type TransactionType = "income" | "expense";
 
 /**
  * Transaction record
@@ -51,6 +58,7 @@ export interface Transaction {
   // Joined relations
   category?: Category;
   account?: Account;
+  is_transfer: boolean;
 }
 
 /**

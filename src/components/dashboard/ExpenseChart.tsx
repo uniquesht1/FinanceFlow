@@ -13,21 +13,26 @@ import { useFinance } from '@/contexts/FinanceContext';
 import { format, startOfYear, endOfYear, eachMonthOfInterval, isWithinInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { BarChart3, ChevronLeft, ChevronRight } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import { Transaction } from '@/types';
 
-export const ExpenseChart: React.FC = () => {
-  const { transactions, selectedCurrency } = useFinance();
+// Define props to receive filtered transactions from Dashboard
+interface ExpenseChartProps {
+  transactions: Transaction[];
+}
+
+export const ExpenseChart: React.FC<ExpenseChartProps> = ({ transactions }) => {
+  const { selectedCurrency } = useFinance();
   const currency = selectedCurrency || 'USD';
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
 
-  // Get all available years from transactions
+  // Get available years for the selector based on passed transactions
   const availableYears = useMemo(() => {
     const years = new Set<number>();
     transactions.forEach(t => {
       const year = new Date(t.date).getFullYear();
       years.add(year);
     });
-    // Always include current year
     years.add(currentYear);
     return Array.from(years).sort((a, b) => b - a);
   }, [transactions, currentYear]);
@@ -44,17 +49,19 @@ export const ExpenseChart: React.FC = () => {
       const monthStart = startOfMonth(monthDate);
       const monthEnd = endOfMonth(monthDate);
 
+      // Filter transactions for this specific month
       const monthTransactions = transactions.filter((t) => {
         const transactionDate = new Date(t.date);
         return isWithinInterval(transactionDate, { start: monthStart, end: monthEnd });
       });
 
+      // Calculate totals using the new is_transfer flag instead of title strings
       const income = monthTransactions
-        .filter((t) => t.type === 'income' && !t.title?.startsWith('[Transfer]'))
+        .filter((t) => t.type === 'income' && !t.is_transfer)
         .reduce((sum, t) => sum + Number(t.amount), 0);
 
       const expenses = monthTransactions
-        .filter((t) => t.type === 'expense' && !t.title?.startsWith('[Transfer]'))
+        .filter((t) => t.type === 'expense' && !t.is_transfer)
         .reduce((sum, t) => sum + Number(t.amount), 0);
 
       return {
@@ -66,15 +73,11 @@ export const ExpenseChart: React.FC = () => {
   }, [transactions, selectedYear]);
 
   const goToPreviousYear = () => {
-    if (selectedYear > minYear) {
-      setSelectedYear(selectedYear - 1);
-    }
+    if (selectedYear > minYear) setSelectedYear(selectedYear - 1);
   };
 
   const goToNextYear = () => {
-    if (selectedYear < maxYear) {
-      setSelectedYear(selectedYear + 1);
-    }
+    if (selectedYear < maxYear) setSelectedYear(selectedYear + 1);
   };
 
   const compactTick = (value: number) => {
@@ -110,11 +113,9 @@ export const ExpenseChart: React.FC = () => {
       </CardHeader>
       <CardContent>
         <div className="relative h-[280px]">
-          {/* Left Arrow */}
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Previous year"
             className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8"
             onClick={goToPreviousYear}
             disabled={selectedYear <= minYear}
@@ -122,18 +123,10 @@ export const ExpenseChart: React.FC = () => {
             <ChevronLeft className="h-5 w-5" />
           </Button>
 
-          {/* Chart */}
           <div className="h-full px-10">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={chartData}
-                margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
-              >
-                <CartesianGrid
-                  strokeDasharray="3 3"
-                  stroke="hsl(var(--border))"
-                  vertical={false}
-                />
+              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis
                   dataKey="month"
                   tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
@@ -151,42 +144,22 @@ export const ExpenseChart: React.FC = () => {
                     backgroundColor: 'hsl(var(--card))',
                     border: '1px solid hsl(var(--border))',
                     borderRadius: '8px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
-                    color: 'hsl(var(--foreground))',
-                  }}
-                  labelStyle={{
-                    color: 'hsl(var(--foreground))',
-                    fontWeight: 600,
                   }}
                   formatter={(value: number) => [formatCurrency(value, currency), '']}
                 />
                 <Legend
                   wrapperStyle={{ paddingTop: '16px' }}
-                  formatter={(value) => (
-                    <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>
-                  )}
+                  formatter={(value) => <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>}
                 />
-                <Bar
-                  dataKey="income"
-                  fill="hsl(var(--success, 142 71% 45%))"
-                  name="Income"
-                  radius={[4, 4, 0, 0]}
-                />
-                <Bar
-                  dataKey="expenses"
-                  fill="hsl(var(--destructive))"
-                  name="Expenses"
-                  radius={[4, 4, 0, 0]}
-                />
+                <Bar dataKey="income" fill="hsl(var(--success, 142 71% 45%))" name="Income" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="expenses" fill="hsl(var(--destructive))" name="Expenses" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Right Arrow */}
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Next year"
             className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8"
             onClick={goToNextYear}
             disabled={selectedYear >= maxYear}

@@ -234,24 +234,30 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
           <div className="flex items-center justify-between py-2">
             <span className="text-sm text-muted-foreground">Category</span>
             {isEditing ? (
-              <Select
-                value={editData.category_id}
-                onValueChange={(value) => setEditData({ ...editData, category_id: value })}
-              >
-                <SelectTrigger className="w-32 h-8">
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredCategories.map((cat) => (
-                    <SelectItem key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              // Only show category selector if it's NOT a transfer
+              !transaction.is_transfer ? (
+                <Select
+                  value={editData.category_id}
+                  onValueChange={(value) => setEditData({ ...editData, category_id: value })}
+                >
+                  <SelectTrigger className="w-32 h-8">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {filteredCategories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <span className="text-sm font-medium text-muted-foreground italic">Fixed (Transfer)</span>
+              )
             ) : (
               <span className="text-sm font-medium">
-                {transaction.category?.name || 'Uncategorized'}
+                {/* Minimal Change: display 'Transfer' instead of 'Uncategorized' */}
+                {transaction.is_transfer ? 'Transfer' : (transaction.category?.name || 'Uncategorized')}
               </span>
             )}
           </div>

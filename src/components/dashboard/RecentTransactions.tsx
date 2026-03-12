@@ -64,7 +64,8 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({ transact
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-foreground truncate group-hover:text-primary transition-colors duration-200">
-                      {transaction.category?.name || 'Uncategorized'}
+                      {/* Minimal change: display 'Transfer' for internal moves */}
+                      {transaction.is_transfer ? 'Transfer' : (transaction.category?.name || 'Uncategorized')}
                     </p>
                     <p className="text-xs sm:text-sm text-muted-foreground truncate">
                       {transaction.account?.name} • {format(new Date(transaction.date), 'MMM d, yyyy')}

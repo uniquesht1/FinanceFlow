@@ -13,36 +13,36 @@ interface FinanceContextType {
   accounts: Account[];
   categories: Category[];
   transactions: Transaction[];
-  
+
   // Filters
   selectedAccountId: string | null;
   selectedCurrency: string | null;
   dateRange: DateRange;
-  
+
   // Computed
   availableCurrencies: string[];
-  
+
   // State
   loading: boolean;
-  
+
   // Filter actions
   setSelectedAccountId: (id: string | null) => void;
   setSelectedCurrency: (currency: string | null) => void;
   setDateRange: (range: DateRange) => void;
-  
+
   // Data actions
   refreshData: () => Promise<void>;
-  
+
   // Account CRUD
   addAccount: (account: Omit<Account, 'id' | 'user_id' | 'created_at'>) => Promise<void>;
   updateAccount: (id: string, account: Partial<Account>) => Promise<void>;
   deleteAccount: (id: string) => Promise<void>;
-  
+
   // Category CRUD
   addCategory: (category: Omit<Category, 'id' | 'user_id' | 'is_default'>) => Promise<void>;
   updateCategory: (id: string, category: Partial<Category>) => Promise<void>;
   deleteCategory: (id: string) => Promise<void>;
-  
+
   // Transaction CRUD
   addTransaction: (transaction: Omit<Transaction, 'id' | 'user_id' | 'created_at' | 'category' | 'account'>) => Promise<void>;
   updateTransaction: (id: string, transaction: Partial<Transaction>) => Promise<void>;
@@ -71,7 +71,7 @@ export const useFinance = (): FinanceContextType => {
 export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const { toast } = useToast();
-  
+
   // State
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -262,10 +262,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const deleteTransaction = async (id: string) => {
+    setTransactions(prev => prev.filter(t => t.id !== id));
     const { error } = await supabase.from('transactions').delete().eq('id', id);
-    if (error) return handleError(error, 'deleting transaction');
-    handleSuccess('Transaction deleted successfully');
-    await fetchData();
+    if (error) {
+      handleError(error, 'deleting transaction');
+      await fetchData();
+    }
   };
 
   // ==========================================
@@ -284,31 +286,34 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const transferTitle = title ? `[Transfer] ${title}` : '[Transfer]';
     const transferDate = date || new Date().toISOString();
 
-    const { error: expError } = await supabase.from('transactions').insert({
-      user_id: user.id,
-      account_id: fromAccountId,
-      type: 'expense',
-      amount,
-      title: transferTitle,
-      note,
-      date: transferDate,
-    });
+    // We insert both sides of the transfer in one array
+    const { error } = await supabase.from('transactions').insert([
+      {
+        user_id: user.id,
+        account_id: fromAccountId,
+        type: 'expense',
+        amount,
+        title: transferTitle,
+        is_transfer: true, 
+        note,
+        date: transferDate,
+      },
+      {
+        user_id: user.id,
+        account_id: toAccountId,
+        type: 'income',
+        amount,
+        title: transferTitle,
+        is_transfer: true, 
+        note,
+        date: transferDate,
+      }
+    ]);
 
-    if (expError) return handleError(expError, 'creating transfer');
-
-    const { error: incError } = await supabase.from('transactions').insert({
-      user_id: user.id,
-      account_id: toAccountId,
-      type: 'income',
-      amount,
-      title: transferTitle,
-      note,
-      date: transferDate,
-    });
-
-    if (incError) return handleError(incError, 'creating transfer');
+    if (error) return handleError(error, 'creating transfer');
 
     handleSuccess('Transfer completed successfully');
+
     await fetchData();
   };
 

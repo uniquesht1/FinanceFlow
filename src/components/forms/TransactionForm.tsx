@@ -86,7 +86,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   }, [open, transaction, accounts, initialValues, formatDateTimeLocalValue]);
 
-  const isTransfer = formData.type === 'transfer';
+  const isTransfer = formData.type === 'transfer' || transaction?.is_transfer;
   const filteredCategories = categories.filter((c) => c.type === (isTransfer ? 'expense' : formData.type));
 
   const handleSubmit = async (e: React.FormEvent) => {

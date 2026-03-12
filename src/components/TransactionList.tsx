@@ -73,6 +73,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
         return (
           t.title?.toLowerCase().includes(term) ||
           t.category?.name?.toLowerCase().includes(term) ||
+          (t.is_transfer && 'transfer'.includes(term)) ||
           t.note?.toLowerCase().includes(term) ||
           t.amount.toString().includes(term)
         );
@@ -158,8 +159,9 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
                       </div>
                       <div>
                         <p className="text-sm font-medium">{transaction.title || transaction.category?.name || 'Untitled'}</p>
-                        <p className="text-xs text-muted-foreground">{transaction.account?.name} • {transaction.category?.name || 'Uncategorized'}</p>
-                      </div>
+                        <p className="text-xs text-muted-foreground">
+                          {transaction.account?.name} • {transaction.is_transfer ? 'Transfer' : (transaction.category?.name || 'Uncategorized')}
+                        </p>                      </div>
                     </div>
                     <div className="flex items-center gap-3">
                       <span className={cn('text-sm font-bold tabular-nums', transaction.type === 'income' ? 'text-emerald-500' : 'text-destructive')}>
