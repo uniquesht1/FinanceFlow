@@ -29,6 +29,7 @@ const Dashboard: React.FC = () => {
   const [showTransactionForm, setShowTransactionForm] = React.useState(false);
   const [period, setPeriod] = React.useState<'this-month' | 'this-year' | 'all'>('this-month');
 
+  // 1. Data Calculation Logic
   const { totalBalance, periodIncome, periodExpenses, periodTransactions, currency } = useMemo(() => {
     const now = new Date();
     const currencyFilteredAccounts = selectedAccountId
@@ -40,10 +41,8 @@ const Dashboard: React.FC = () => {
     const accountIds = new Set(currencyFilteredAccounts.map(a => a.id));
     const baseTransactions = transactions.filter((t) => accountIds.has(t.account_id));
 
-    // 1. BALANCE MATH: Must include ALL transactions (including transfers) to be accurate
-    const allTimeIncome = baseTransactions.filter((t) => t.type === 'income').reduce((sum, t) => sum + Number(t.amount), 0);
-    const allTimeExpenses = baseTransactions.filter((t) => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount), 0);
-    const startingBalance = currencyFilteredAccounts.reduce((sum, a) => sum + Number(a.starting_balance), 0);
+    // Uses the pre-calculated DB field we added in the migration
+    const startingBalance = currencyFilteredAccounts.reduce((sum, a) => sum + Number(a.current_balance), 0);
 
     const filteredTxs = baseTransactions.filter((t) => {
       const txDate = parseISO(t.date);
@@ -54,20 +53,19 @@ const Dashboard: React.FC = () => {
       }
     });
 
-    // 2. INCOME/EXPENSE MATH: Exclude [Transfer] items so income/spending totals aren't inflated
     const income = filteredTxs
-      .filter((t) => t.type === 'income' && !t.title?.startsWith('[Transfer]'))
+      .filter((t) => t.type === 'income' && !t.is_transfer)
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
     const expenses = filteredTxs
-      .filter((t) => t.type === 'expense' && !t.title?.startsWith('[Transfer]'))
+      .filter((t) => t.type === 'expense' && !t.is_transfer)
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
     const selectedAccount = selectedAccountId ? accounts.find(a => a.id === selectedAccountId) : null;
     const accountCurrency = selectedAccount?.currency || selectedCurrency || 'USD';
 
     return {
-      totalBalance: startingBalance + allTimeIncome - allTimeExpenses,
+      totalBalance: startingBalance,
       periodIncome: income,
       periodExpenses: expenses,
       periodTransactions: filteredTxs,
@@ -77,6 +75,7 @@ const Dashboard: React.FC = () => {
 
   const netCashFlow = periodIncome - periodExpenses;
 
+  // 2. Labels & UI Helpers
   const periodLabel = useMemo(() => {
     const now = new Date();
     switch (period) {
@@ -93,7 +92,7 @@ const Dashboard: React.FC = () => {
     return `${periodLabel} · ${accountLabel}`;
   }, [periodLabel, selectedAccountId, accounts]);
 
-  // Stable Layout: Sidebar stays, only inner content shows loading if needed
+  // 3. Component Return (JSX)
   return (
     <AppLayout>
       {loading && accounts.length === 0 ? (
@@ -123,7 +122,7 @@ const Dashboard: React.FC = () => {
               <div className="flex items-center gap-2 bg-card border border-border/50 p-1 rounded-lg">
                 <span className="text-xs text-muted-foreground pl-2 font-medium">Period</span>
                 <Select value={period} onValueChange={(v: any) => setPeriod(v)}>
-                  <SelectTrigger className="w-[130px] h-8 border-none focus:ring-0" aria-label="Select time period">
+                  <SelectTrigger className="w-[130px] h-8 border-none focus:ring-0">
                     <SelectValue placeholder="Select Period" />
                   </SelectTrigger>
                   <SelectContent>
@@ -145,15 +144,9 @@ const Dashboard: React.FC = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
-              {/* Charts should only show actual spending/income, not transfers */}
-              <ExpenseChart
-                transactions={periodTransactions.filter(t => !t.title?.startsWith('[Transfer]'))}
-                period={period}
-              />
+              <ExpenseChart transactions={transactions.filter(t => !t.is_transfer)} />
             </div>
-            <CategoryPieChart
-              transactions={periodTransactions.filter(t => !t.title?.startsWith('[Transfer]'))}
-            />
+            <CategoryPieChart transactions={periodTransactions.filter(t => !t.is_transfer)} />
             <div className="lg:col-span-2">
               <RecentTransactions transactions={periodTransactions} />
             </div>
