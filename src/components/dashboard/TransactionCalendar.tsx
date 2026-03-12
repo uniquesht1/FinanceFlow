@@ -275,51 +275,52 @@ export const TransactionCalendar: React.FC = () => {
             )}
 
             {/* Transaction List */}
-            <ScrollArea className="h-[200px]">
-              {selectedDateTransactions.length > 0 ? (
-                <div className="space-y-2 pr-3">
-                  {selectedDateTransactions.map((transaction) => (
-                    <div
-                      key={transaction.id}
-                      onClick={() => {
-                        const dateParam = format(selectedDate, 'yyyy-MM-dd');
-                        navigate(`/transactions?date=${dateParam}`);
-                      }}
-                      className="flex items-center justify-between p-2 rounded-lg bg-muted/50 border border-border/50 cursor-pointer hover:bg-muted hover:border-primary/30 transition-all duration-200"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-foreground truncate">
-                          {getCategoryName(transaction.category_id)}
-                        </p>
-                        {transaction.note && (
-                          <p className="text-xs text-muted-foreground truncate">
-                            {transaction.note}
-                          </p>
-                        )}
-                      </div>
-                      <span
-                        className={cn(
-                          'text-sm font-semibold ml-2',
-                          transaction.type === 'income'
-                            ? 'text-success'
-                            : 'text-destructive'
-                        )}
-                      >
-                        {transaction.type === 'income' ? '+' : '-'}
-                        {formatCurrency(Number(transaction.amount))}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center h-full text-center py-8">
-                  <CalendarDays className="h-8 w-8 text-muted-foreground/50 mb-2" />
-                  <p className="text-sm text-muted-foreground">
-                    No transactions on this day
-                  </p>
-                </div>
-              )}
-            </ScrollArea>
+<ScrollArea className="h-[200px]">
+  {selectedDateTransactions.length > 0 ? (
+    <div className="space-y-2 pr-3">
+      {selectedDateTransactions.map((transaction) => (
+        <div
+          key={transaction.id}
+          onClick={() => {
+            const dateParam = format(selectedDate, 'yyyy-MM-dd');
+            navigate(`/transactions?date=${dateParam}`);
+          }}
+          className="flex items-center justify-between p-2 rounded-lg bg-muted/50 border border-border/50 cursor-pointer hover:bg-muted hover:border-primary/30 transition-all duration-200"
+        >
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-foreground truncate">
+              {/* CHANGE: Prioritize Title, then Category Name */}
+              {transaction.title || getCategoryName(transaction.category_id)}
+            </p>
+            {transaction.note && (
+              <p className="text-xs text-muted-foreground truncate">
+                {transaction.note}
+              </p>
+            )}
+          </div>
+          <span
+            className={cn(
+              'text-sm font-semibold ml-2',
+              transaction.type === 'income'
+                ? 'text-success'
+                : 'text-destructive'
+            )}
+          >
+            {transaction.type === 'income' ? '+' : '-'}
+            {formatCurrency(Number(transaction.amount))}
+          </span>
+        </div>
+      ))}
+    </div>
+  ) : (
+    <div className="flex flex-col items-center justify-center h-full text-center py-8">
+      <CalendarDays className="h-8 w-8 text-muted-foreground/50 mb-2" />
+      <p className="text-sm text-muted-foreground">
+        No transactions on this day
+      </p>
+    </div>
+  )}
+</ScrollArea>
           </div>
         )}
       </CardContent>
