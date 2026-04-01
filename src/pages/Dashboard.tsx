@@ -24,10 +24,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+type Period = 'this-month' | 'this-year' | 'all';
+
 const Dashboard: React.FC = () => {
   const { accounts, transactions, selectedAccountId, selectedCurrency, loading } = useFinance();
   const [showTransactionForm, setShowTransactionForm] = React.useState(false);
-  const [period, setPeriod] = React.useState<'this-month' | 'this-year' | 'all'>('this-month');
+  const [period, setPeriod] = React.useState<Period>('this-month');
 
   // 1. Data Calculation Logic
   const { totalBalance, periodIncome, periodExpenses, periodTransactions, currency } = useMemo(() => {
@@ -74,6 +76,22 @@ const Dashboard: React.FC = () => {
   }, [accounts, transactions, selectedAccountId, selectedCurrency, period]);
 
   const netCashFlow = periodIncome - periodExpenses;
+  const nonTransferPeriodTransactions = useMemo(
+    () => periodTransactions.filter((t) => !t.is_transfer),
+    [periodTransactions]
+  );
+  const savingsRate = useMemo(() => {
+    if (periodIncome <= 0) return 0;
+    return (netCashFlow / periodIncome) * 100;
+  }, [netCashFlow, periodIncome]);
+  const allNonTransferTransactions = useMemo(
+    () => transactions.filter((t) => !t.is_transfer),
+    [transactions]
+  );
+  const nonTransferTransactions = useMemo(
+    () => periodTransactions.filter((t) => !t.is_transfer),
+    [periodTransactions]
+  );
 
   // 2. Labels & UI Helpers
   const periodLabel = useMemo(() => {
@@ -121,7 +139,7 @@ const Dashboard: React.FC = () => {
               </div>
               <div className="flex items-center gap-2 bg-card border border-border/50 p-1 rounded-lg">
                 <span className="text-xs text-muted-foreground pl-2 font-medium">Period</span>
-                <Select value={period} onValueChange={(v: any) => setPeriod(v)}>
+                <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
                   <SelectTrigger className="w-[130px] h-8 border-none focus:ring-0">
                     <SelectValue placeholder="Select Period" />
                   </SelectTrigger>
@@ -142,11 +160,26 @@ const Dashboard: React.FC = () => {
             <BalanceCard title="Net Cash Flow" amount={netCashFlow} currency={currency} type={netCashFlow >= 0 ? 'income' : 'expense'} />
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="rounded-xl border border-border/50 bg-card px-4 py-3">
+              <p className="text-xs text-muted-foreground">Transactions in period</p>
+              <p className="text-xl font-semibold tabular-nums">{nonTransferPeriodTransactions.length}</p>
+            </div>
+            <div className="rounded-xl border border-border/50 bg-card px-4 py-3">
+              <p className="text-xs text-muted-foreground">Savings rate</p>
+              <p className="text-xl font-semibold tabular-nums">{savingsRate.toFixed(1)}%</p>
+            </div>
+            <div className="rounded-xl border border-border/50 bg-card px-4 py-3">
+              <p className="text-xs text-muted-foreground">Period focus</p>
+              <p className="text-sm font-medium text-foreground">{periodLabel}</p>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
-              <ExpenseChart transactions={transactions.filter(t => !t.is_transfer)} />
+              <ExpenseChart transactions={allNonTransferTransactions} />
             </div>
-            <CategoryPieChart transactions={periodTransactions.filter(t => !t.is_transfer)} />
+            <CategoryPieChart transactions={nonTransferTransactions} />
             <div className="lg:col-span-2">
               <RecentTransactions transactions={periodTransactions} />
             </div>

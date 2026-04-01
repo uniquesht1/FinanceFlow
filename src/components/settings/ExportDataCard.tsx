@@ -26,7 +26,8 @@ import { cn } from '@/lib/utils';
 export const ExportDataCard: React.FC = () => {
   const { transactions, accounts } = useFinance();
   const { toast } = useToast();
-  
+  const [isExporting, setIsExporting] = useState(false);
+
   const [startDate, setStartDate] = useState<Date | undefined>();
   const [endDate, setEndDate] = useState<Date | undefined>();
   const [selectedAccountId, setSelectedAccountId] = useState<string>('all');
@@ -35,16 +36,16 @@ export const ExportDataCard: React.FC = () => {
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
       const tDate = new Date(t.date);
-      
+
       if (startDate && tDate < startDate) return false;
       if (endDate && tDate > endDate) return false;
       if (selectedAccountId !== 'all' && t.account_id !== selectedAccountId) return false;
-      
+
       return true;
     });
   }, [transactions, startDate, endDate, selectedAccountId]);
 
-  const handleExport = () => {
+  const handleExport = async () => {
     if (filteredTransactions.length === 0) {
       toast({
         title: 'No transactions',
@@ -54,20 +55,37 @@ export const ExportDataCard: React.FC = () => {
       return;
     }
 
-    const dateStr = startDate && endDate 
+    const dateStr = startDate && endDate
       ? `${format(startDate, 'yyyy-MM-dd')}_to_${format(endDate, 'yyyy-MM-dd')}`
       : format(new Date(), 'yyyy-MM-dd');
-    
-    const exportFn = exportFormat === 'pdf' ? downloadPDF : downloadCSV;
-    exportFn({
-      transactions: filteredTransactions,
-      filename: `transactions_${dateStr}`
-    });
 
-    toast({
-      title: 'Export successful',
-      description: `Exported ${filteredTransactions.length} transactions to ${exportFormat.toUpperCase()}.`
-    });
+    setIsExporting(true);
+    try {
+      if (exportFormat === 'pdf') {
+        await downloadPDF({
+          transactions: filteredTransactions,
+          filename: `transactions_${dateStr}`,
+        });
+      } else {
+        downloadCSV({
+          transactions: filteredTransactions,
+          filename: `transactions_${dateStr}`,
+        });
+      }
+
+      toast({
+        title: 'Export successful',
+        description: `Exported ${filteredTransactions.length} transactions to ${exportFormat.toUpperCase()}.`
+      });
+    } catch {
+      toast({
+        title: 'Export failed',
+        description: 'Something went wrong while exporting your data.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleClearDates = () => {
@@ -187,9 +205,9 @@ export const ExportDataCard: React.FC = () => {
 
         {/* Actions */}
         <div className="flex gap-2">
-          <Button onClick={handleExport} className="flex-1">
+          <Button onClick={handleExport} className="flex-1" disabled={isExporting}>
             <Download className="h-4 w-4 mr-2" />
-            Export CSV
+            {isExporting ? 'Exporting...' : `Export ${exportFormat.toUpperCase()}`}
           </Button>
           {(startDate || endDate) && (
             <Button variant="outline" onClick={handleClearDates}>

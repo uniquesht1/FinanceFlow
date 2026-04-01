@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useFinance, Category } from '@/contexts/FinanceContext';
+import type { TransactionType } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,13 +25,19 @@ interface CategoryFormProps {
   category?: Category;
 }
 
+interface CategoryFormData {
+  name: string;
+  type: TransactionType;
+  icon: string;
+}
+
 export const CategoryForm: React.FC<CategoryFormProps> = ({ open, onOpenChange, category }) => {
   const { addCategory, updateCategory } = useFinance();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<CategoryFormData>({
     name: category?.name || '',
-    type: category?.type || 'expense',
+    type: (category?.type as TransactionType) || 'expense',
     icon: category?.icon || ''
   });
 
@@ -38,7 +45,7 @@ export const CategoryForm: React.FC<CategoryFormProps> = ({ open, onOpenChange, 
     if (open) {
       setFormData({
         name: category?.name || '',
-        type: category?.type || 'expense',
+        type: (category?.type as TransactionType) || 'expense',
         icon: category?.icon || ''
       });
     }
@@ -53,7 +60,7 @@ export const CategoryForm: React.FC<CategoryFormProps> = ({ open, onOpenChange, 
       if (category) {
         await updateCategory(category.id, formData);
       } else {
-        await addCategory(formData as any);
+        await addCategory(formData);
       }
       onOpenChange(false);
     } finally {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction, useFinance } from '@/contexts/FinanceContext';
 import { useTimezone } from '@/contexts/TimezoneContext';
+import { useToast } from '@/hooks/use-toast';
 import { formatCurrency, cn } from '@/lib/utils';
 import {
   Dialog,
@@ -46,6 +47,7 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
 }) => {
   const { accounts, categories, updateTransaction } = useFinance();
   const { formatDateInTimezone, formatDateTimeLocalValue, parseDateTimeLocalValue } = useTimezone();
+  const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState({
     amount: '',
@@ -75,14 +77,42 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
   if (!transaction) return null;
 
   const handleSave = async () => {
+    const amount = Number(editData.amount);
+    if (!transaction.is_transfer && (!Number.isFinite(amount) || amount <= 0)) {
+      toast({
+        title: 'Invalid amount',
+        description: 'Amount must be greater than 0.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!editData.account_id) {
+      toast({
+        title: 'Missing account',
+        description: 'Please select an account.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const payload: Partial<Transaction> = transaction.is_transfer
+      ? {
+        note: editData.note || null,
+        title: editData.title || null,
+      }
+      : {
+        amount,
+        type: editData.type,
+        category_id: editData.category_id || null,
+        account_id: editData.account_id,
+        date: editData.date.toISOString(),
+        note: editData.note || null,
+        title: editData.title || null,
+      };
+
     await updateTransaction(transaction.id, {
-      amount: Number(editData.amount),
-      type: editData.type,
-      category_id: editData.category_id || null,
-      account_id: editData.account_id,
-      date: editData.date.toISOString(),
-      note: editData.note || null,
-      title: editData.title || null,
+      ...payload,
     });
     setIsEditing(false);
     onOpenChange(false);
@@ -131,7 +161,7 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
               <ArrowDownRight className="h-5 w-5 text-destructive" />
             )}
           </div>
-          {isEditing ? (
+          {isEditing && !transaction.is_transfer ? (
             <Input
               type="number"
               value={editData.amount}
@@ -171,7 +201,7 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
             )}
           </div>
           {/* Type - only in edit mode */}
-          {isEditing && (
+          {isEditing && !transaction.is_transfer && (
             <div className="flex items-center justify-between py-2">
               <span className="text-sm text-muted-foreground">Type</span>
               <Select
@@ -192,7 +222,7 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
           )}
 
           {/* Date & Time - only in edit mode */}
-          {isEditing && (
+          {isEditing && !transaction.is_transfer && (
             <div className="flex items-center justify-between py-2">
               <span className="text-sm text-muted-foreground">Date & Time</span>
               <Input
@@ -209,7 +239,7 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
           {/* Account */}
           <div className="flex items-center justify-between py-2">
             <span className="text-sm text-muted-foreground">Account</span>
-            {isEditing ? (
+            {isEditing && !transaction.is_transfer ? (
               <Select
                 value={editData.account_id}
                 onValueChange={(value) => setEditData({ ...editData, account_id: value })}
@@ -233,7 +263,7 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
           {/* Category */}
           <div className="flex items-center justify-between py-2">
             <span className="text-sm text-muted-foreground">Category</span>
-            {isEditing ? (
+            {isEditing && !transaction.is_transfer ? (
               // Only show category selector if it's NOT a transfer
               !transaction.is_transfer ? (
                 <Select
@@ -288,7 +318,7 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
                 Cancel
               </Button>
               <Button className="flex-1" onClick={handleSave}>
-                Save
+                {transaction.is_transfer ? 'Save Note' : 'Save'}
               </Button>
             </div>
           ) : (

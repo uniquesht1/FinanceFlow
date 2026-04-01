@@ -13,12 +13,11 @@ interface RecentTransactionsProps {
 
 export const RecentTransactions: React.FC<RecentTransactionsProps> = ({ transactions }) => {
   const navigate = useNavigate();
-  // Take the 5 most recent from the already filtered transactions array
-  const recentTransactions = transactions.slice(0, 5);
+  const recentTransactions = React.useMemo(() => transactions.slice(0, 5), [transactions]);
 
-  const handleClick = () => {
+  const handleClick = React.useCallback(() => {
     navigate('/transactions');
-  };
+  }, [navigate]);
 
   return (
     <Card

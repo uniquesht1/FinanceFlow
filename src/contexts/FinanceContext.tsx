@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -44,7 +44,15 @@ interface FinanceContextType {
   deleteCategory: (id: string) => Promise<void>;
 
   // Transaction CRUD
-  addTransaction: (transaction: Omit<Transaction, 'id' | 'user_id' | 'created_at' | 'category' | 'account'>) => Promise<void>;
+  addTransaction: (transaction: {
+    account_id: string;
+    category_id: string | null;
+    type: 'income' | 'expense';
+    amount: number;
+    date: string;
+    note?: string | null;
+    title?: string | null;
+  }) => Promise<void>;
   updateTransaction: (id: string, transaction: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   addTransfer: (fromAccountId: string, toAccountId: string, amount: number, title?: string, note?: string, date?: string) => Promise<void>;
@@ -80,6 +88,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [selectedCurrency, setSelectedCurrency] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange>({ from: null, to: null });
   const [loading, setLoading] = useState(true);
+  const fetchInFlightRef = useRef<Promise<void> | null>(null);
 
   // Compute available currencies from accounts
   const availableCurrencies = React.useMemo(() => {
@@ -116,6 +125,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // ==========================================
 
   const fetchData = useCallback(async () => {
+    if (fetchInFlightRef.current) {
+      return fetchInFlightRef.current;
+    }
+
     if (!user) {
       setAccounts([]);
       setCategories([]);
@@ -124,29 +137,35 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
       return;
     }
 
-    setLoading(true);
-    try {
-      const [accountsResult, categoriesResult, transactionsResult] = await Promise.all([
-        supabase.from('accounts').select('*').order('created_at', { ascending: true }),
-        supabase.from('categories').select('*').order('name', { ascending: true }),
-        supabase.from('transactions')
-          .select('*, category:categories(*), account:accounts(*)')
-          .order('date', { ascending: false }),
-      ]);
+    const request = (async () => {
+      setLoading(true);
+      try {
+        const [accountsResult, categoriesResult, transactionsResult] = await Promise.all([
+          supabase.from('accounts').select('*').order('created_at', { ascending: true }),
+          supabase.from('categories').select('*').order('name', { ascending: true }),
+          supabase.from('transactions')
+            .select('*, category:categories(*), account:accounts(*)')
+            .order('date', { ascending: false }),
+        ]);
 
-      if (accountsResult.error) throw accountsResult.error;
-      if (categoriesResult.error) throw categoriesResult.error;
-      if (transactionsResult.error) throw transactionsResult.error;
+        if (accountsResult.error) throw accountsResult.error;
+        if (categoriesResult.error) throw categoriesResult.error;
+        if (transactionsResult.error) throw transactionsResult.error;
 
-      setAccounts(accountsResult.data ?? []);
-      setCategories((categoriesResult.data ?? []) as Category[]);
-      setTransactions((transactionsResult.data ?? []) as Transaction[]);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error occurred';
-      toast({ title: 'Error loading data', description: message, variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
+        setAccounts(accountsResult.data ?? []);
+        setCategories((categoriesResult.data ?? []) as Category[]);
+        setTransactions((transactionsResult.data ?? []) as Transaction[]);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : 'Unknown error occurred';
+        toast({ title: 'Error loading data', description: message, variant: 'destructive' });
+      } finally {
+        setLoading(false);
+        fetchInFlightRef.current = null;
+      }
+    })();
+
+    fetchInFlightRef.current = request;
+    return request;
   }, [user, toast]);
 
   useEffect(() => {
@@ -164,6 +183,17 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const handleSuccess = (message: string) => {
     toast({ title: message });
+  };
+
+  const isValidTransactionDate = (value: string) => {
+    const timestamp = Date.parse(value);
+    return Number.isFinite(timestamp);
+  };
+
+  const sanitizeText = (value?: string | null): string | null => {
+    if (value == null) return null;
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
   };
 
   // ==========================================
@@ -224,19 +254,47 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   // Transaction Operations
   // ==========================================
 
-  const addTransaction = async (
-    transaction: Omit<Transaction, 'id' | 'user_id' | 'created_at' | 'category' | 'account'>
-  ) => {
+  const addTransaction = async (transaction: {
+    account_id: string;
+    category_id: string | null;
+    type: 'income' | 'expense';
+    amount: number;
+    date: string;
+    note?: string | null;
+    title?: string | null;
+  }) => {
     if (!user) return;
+
+    if (transaction.type !== 'income' && transaction.type !== 'expense') {
+      handleError(new Error('Transaction type must be income or expense.'), 'adding transaction');
+      return;
+    }
+
+    const amount = Number(transaction.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      handleError(new Error('Amount must be a valid number greater than 0.'), 'adding transaction');
+      return;
+    }
+
+    if (!transaction.account_id) {
+      handleError(new Error('Please select an account.'), 'adding transaction');
+      return;
+    }
+
+    if (!isValidTransactionDate(transaction.date)) {
+      handleError(new Error('Please provide a valid transaction date.'), 'adding transaction');
+      return;
+    }
+
     const { error } = await supabase.from('transactions').insert({
       user_id: user.id,
       account_id: transaction.account_id,
       category_id: transaction.category_id,
       type: transaction.type,
-      amount: transaction.amount,
+      amount,
       date: transaction.date,
-      note: transaction.note,
-      title: transaction.title,
+      note: sanitizeText(transaction.note),
+      title: sanitizeText(transaction.title),
     });
     if (error) return handleError(error, 'adding transaction');
     handleSuccess('Transaction added successfully');
@@ -244,17 +302,61 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const updateTransaction = async (id: string, transaction: Partial<Transaction>) => {
+    if (!id) {
+      handleError(new Error('Missing transaction id.'), 'updating transaction');
+      return;
+    }
+
+    if (transaction.type !== undefined && transaction.type !== 'income' && transaction.type !== 'expense') {
+      handleError(new Error('Transaction type must be income or expense.'), 'updating transaction');
+      return;
+    }
+
+    const existing = transactions.find((t) => t.id === id);
+    if (!existing) {
+      handleError(new Error('Transaction not found.'), 'updating transaction');
+      return;
+    }
+
+    if (existing.is_transfer) {
+      const attemptsImmutableUpdate =
+        transaction.amount !== undefined ||
+        transaction.type !== undefined ||
+        transaction.account_id !== undefined ||
+        transaction.category_id !== undefined ||
+        transaction.date !== undefined;
+
+      if (attemptsImmutableUpdate) {
+        handleError(new Error('Transfer core fields are immutable. Delete and recreate the transfer to change amount/date/accounts.'), 'updating transfer');
+        return;
+      }
+    }
+
+    if (transaction.amount !== undefined) {
+      const amount = Number(transaction.amount);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        handleError(new Error('Amount must be a valid number greater than 0.'), 'updating transaction');
+        return;
+      }
+    }
+
+    if (transaction.date && !isValidTransactionDate(transaction.date)) {
+      handleError(new Error('Please provide a valid transaction date.'), 'updating transaction');
+      return;
+    }
+
+    const updates: Partial<Transaction> = {};
+    if (transaction.account_id !== undefined) updates.account_id = transaction.account_id;
+    if (transaction.category_id !== undefined) updates.category_id = transaction.category_id;
+    if (transaction.type !== undefined) updates.type = transaction.type;
+    if (transaction.amount !== undefined) updates.amount = Number(transaction.amount);
+    if (transaction.date !== undefined) updates.date = transaction.date;
+    if (transaction.note !== undefined) updates.note = sanitizeText(transaction.note);
+    if (transaction.title !== undefined) updates.title = sanitizeText(transaction.title);
+
     const { error } = await supabase
       .from('transactions')
-      .update({
-        account_id: transaction.account_id,
-        category_id: transaction.category_id,
-        type: transaction.type,
-        amount: transaction.amount,
-        date: transaction.date,
-        note: transaction.note,
-        title: transaction.title,
-      })
+      .update(updates)
       .eq('id', id);
     if (error) return handleError(error, 'updating transaction');
     handleSuccess('Transaction updated successfully');
@@ -262,12 +364,43 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   };
 
   const deleteTransaction = async (id: string) => {
-    setTransactions(prev => prev.filter(t => t.id !== id));
-    const { error } = await supabase.from('transactions').delete().eq('id', id);
+    if (!id) {
+      handleError(new Error('Missing transaction id.'), 'deleting transaction');
+      return;
+    }
+
+    const toDeleteIds = new Set<string>([id]);
+    const transaction = transactions.find((t) => t.id === id);
+
+    if (transaction?.is_transfer) {
+      const counterpart = transactions.find(
+        (t) =>
+          t.id !== id &&
+          t.is_transfer &&
+          t.user_id === transaction.user_id &&
+          t.date === transaction.date &&
+          Number(t.amount) === Number(transaction.amount) &&
+          t.title === transaction.title &&
+          t.note === transaction.note &&
+          t.type !== transaction.type
+      );
+
+      if (counterpart) {
+        toDeleteIds.add(counterpart.id);
+      }
+    }
+
+    const deleteIds = Array.from(toDeleteIds);
+    setTransactions((prev) => prev.filter((t) => !deleteIds.includes(t.id)));
+
+    const { error } = await supabase.from('transactions').delete().in('id', deleteIds);
     if (error) {
       handleError(error, 'deleting transaction');
       await fetchData();
+      return;
     }
+
+    handleSuccess(transaction?.is_transfer ? 'Transfer deleted successfully' : 'Transaction deleted successfully');
   };
 
   // ==========================================
@@ -283,8 +416,34 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     date?: string
   ) => {
     if (!user) return;
-    const transferTitle = title ? `[Transfer] ${title}` : '[Transfer]';
+
+    if (!fromAccountId || !toAccountId) {
+      handleError(new Error('Please select both source and destination accounts.'), 'creating transfer');
+      return;
+    }
+
+    if (fromAccountId === toAccountId) {
+      handleError(new Error('Source and destination accounts must be different.'), 'creating transfer');
+      return;
+    }
+
+    const normalizedAmount = Number(amount);
+    if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+      handleError(new Error('Transfer amount must be greater than 0.'), 'creating transfer');
+      return;
+    }
+
     const transferDate = date || new Date().toISOString();
+    if (!isValidTransactionDate(transferDate)) {
+      handleError(new Error('Please provide a valid transfer date.'), 'creating transfer');
+      return;
+    }
+
+    const sanitizedTitle = sanitizeText(title);
+    const transferTitle = sanitizedTitle
+      ? (sanitizedTitle.startsWith('[Transfer]') ? sanitizedTitle : `[Transfer] ${sanitizedTitle}`)
+      : '[Transfer]';
+    const transferNote = sanitizeText(note);
 
     // We insert both sides of the transfer in one array
     const { error } = await supabase.from('transactions').insert([
@@ -292,20 +451,20 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         user_id: user.id,
         account_id: fromAccountId,
         type: 'expense',
-        amount,
+        amount: normalizedAmount,
         title: transferTitle,
-        is_transfer: true, 
-        note,
+        is_transfer: true,
+        note: transferNote,
         date: transferDate,
       },
       {
         user_id: user.id,
         account_id: toAccountId,
         type: 'income',
-        amount,
+        amount: normalizedAmount,
         title: transferTitle,
-        is_transfer: true, 
-        note,
+        is_transfer: true,
+        note: transferNote,
         date: transferDate,
       }
     ]);

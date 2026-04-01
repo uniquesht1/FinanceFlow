@@ -19,11 +19,26 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
+import type { TransactionType } from '@/types';
+import { useToast } from '@/hooks/use-toast';
 
 interface InitialValues {
   type?: 'income' | 'expense';
   amount?: string;
   note?: string;
+}
+
+type TransactionFormType = TransactionType | 'transfer';
+
+interface TransactionFormState {
+  type: TransactionFormType;
+  account_id: string;
+  to_account_id: string;
+  category_id: string;
+  amount: string;
+  date: string;
+  note: string;
+  title: string;
 }
 
 interface TransactionFormProps {
@@ -43,6 +58,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 }) => {
   const { accounts, categories, addTransaction, updateTransaction, addTransfer } = useFinance();
   const { formatDateTimeLocalValue, parseDateTimeLocalValue } = useTimezone();
+  const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const getDefaultDateTime = () => {
@@ -50,17 +66,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     return formatDateTimeLocalValue(new Date());
   };
 
-  const [formData, setFormData] = useState<{
-    type: string;
-    account_id: string;
-    to_account_id: string;
-    category_id: string;
-    amount: string;
-    date: string;
-    note: string;
-    title: string;
-  }>({
-    type: transaction?.type || 'expense',
+  const [formData, setFormData] = useState<TransactionFormState>({
+    type: (transaction?.type as TransactionFormType) || 'expense',
     account_id: transaction?.account_id || '',
     to_account_id: '',
     category_id: transaction?.category_id || '',
@@ -91,12 +98,26 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.account_id || !formData.amount) return;
+    if (!formData.account_id) {
+      toast({ title: 'Missing account', description: 'Please select an account.', variant: 'destructive' });
+      return;
+    }
+
+    const parsedAmount = Number(formData.amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      toast({ title: 'Invalid amount', description: 'Amount must be greater than 0.', variant: 'destructive' });
+      return;
+    }
 
     setIsSubmitting(true);
     try {
       if (isTransfer) {
         if (!formData.to_account_id || formData.to_account_id === formData.account_id) {
+          toast({
+            title: 'Invalid transfer account',
+            description: 'Select a different destination account.',
+            variant: 'destructive',
+          });
           setIsSubmitting(false);
           return;
         }
@@ -104,7 +125,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         await addTransfer(
           formData.account_id,
           formData.to_account_id,
-          parseFloat(formData.amount),
+          parsedAmount,
           formData.title || undefined,
           formData.note || undefined,
           dateIso
@@ -116,7 +137,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           type: formData.type as 'income' | 'expense',
           account_id: formData.account_id,
           date: dateIso,
-          amount: parseFloat(formData.amount),
+          amount: parsedAmount,
           category_id: formData.category_id || null,
           title: formData.title || null,
           note: formData.note || null,
@@ -124,12 +145,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       } else {
         const dateIso = parseDateTimeLocalValue(formData.date);
         await addTransaction({
-          ...formData,
+          type: formData.type as TransactionType,
+          account_id: formData.account_id,
           date: dateIso,
-          amount: parseFloat(formData.amount),
+          amount: parsedAmount,
           category_id: formData.category_id || null,
-          title: formData.title || null
-        } as any);
+          title: formData.title || null,
+          note: formData.note || null,
+        });
         onSuccess?.();
       }
       onOpenChange(false);

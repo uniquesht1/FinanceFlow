@@ -40,6 +40,10 @@ interface RecurringTransaction {
   created_at: string;
 }
 
+type RecurringFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+
+const FREQUENCIES: RecurringFrequency[] = ['daily', 'weekly', 'monthly', 'yearly'];
+
 const RecurringTransactions: React.FC = () => {
   const { user } = useAuth();
   const { accounts, categories } = useFinance();
@@ -111,14 +115,31 @@ const RecurringTransactions: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !formData.account_id || !formData.amount) return;
+
+    if (!user) return;
+
+    if (!formData.account_id) {
+      toast({ title: 'Missing account', description: 'Please select an account.', variant: 'destructive' });
+      return;
+    }
+
+    const amount = Number(formData.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast({ title: 'Invalid amount', description: 'Amount must be greater than 0.', variant: 'destructive' });
+      return;
+    }
+
+    if (!FREQUENCIES.includes(formData.frequency as RecurringFrequency)) {
+      toast({ title: 'Invalid frequency', description: 'Please select a valid frequency.', variant: 'destructive' });
+      return;
+    }
 
     const payload = {
       user_id: user.id,
       account_id: formData.account_id,
       category_id: formData.category_id || null,
       type: formData.type,
-      amount: parseFloat(formData.amount),
+      amount,
       title: formData.title || null,
       note: formData.note || null,
       frequency: formData.frequency,
@@ -181,6 +202,27 @@ const RecurringTransactions: React.FC = () => {
     }
 
     let created = 0;
+    let failed = 0;
+
+    const getNextDate = (date: Date, frequency: RecurringFrequency) => {
+      const nextDate = new Date(date);
+      switch (frequency) {
+        case 'daily':
+          nextDate.setDate(nextDate.getDate() + 1);
+          break;
+        case 'weekly':
+          nextDate.setDate(nextDate.getDate() + 7);
+          break;
+        case 'monthly':
+          nextDate.setMonth(nextDate.getMonth() + 1);
+          break;
+        case 'yearly':
+          nextDate.setFullYear(nextDate.getFullYear() + 1);
+          break;
+      }
+      return nextDate;
+    };
+
     for (const item of dueItems) {
       // Create transaction
       const { error: txError } = await supabase.from('transactions').insert({
@@ -194,25 +236,40 @@ const RecurringTransactions: React.FC = () => {
         date: item.next_due_date,
       });
 
-      if (!txError) {
-        created++;
-        // Calculate next due date
-        const nextDate = new Date(item.next_due_date);
-        switch (item.frequency) {
-          case 'daily': nextDate.setDate(nextDate.getDate() + 1); break;
-          case 'weekly': nextDate.setDate(nextDate.getDate() + 7); break;
-          case 'monthly': nextDate.setMonth(nextDate.getMonth() + 1); break;
-          case 'yearly': nextDate.setFullYear(nextDate.getFullYear() + 1); break;
-        }
+      if (txError) {
+        failed++;
+        continue;
+      }
 
-        await supabase
-          .from('recurring_transactions')
-          .update({ next_due_date: format(nextDate, 'yyyy-MM-dd') })
-          .eq('id', item.id);
+      created++;
+
+      const frequency = item.frequency as RecurringFrequency;
+      if (!FREQUENCIES.includes(frequency)) {
+        failed++;
+        continue;
+      }
+
+      // Advance until first upcoming due date so users don't need to process multiple times.
+      let nextDate = new Date(item.next_due_date);
+      do {
+        nextDate = getNextDate(nextDate, frequency);
+      } while (format(nextDate, 'yyyy-MM-dd') <= today);
+
+      const { error: updateError } = await supabase
+        .from('recurring_transactions')
+        .update({ next_due_date: format(nextDate, 'yyyy-MM-dd') })
+        .eq('id', item.id);
+
+      if (updateError) {
+        failed++;
       }
     }
 
-    toast({ title: `Processed ${created} recurring transaction${created !== 1 ? 's' : ''}` });
+    toast({
+      title: `Processed ${created} recurring transaction${created !== 1 ? 's' : ''}`,
+      description: failed > 0 ? `${failed} item${failed !== 1 ? 's' : ''} need attention.` : undefined,
+      variant: failed > 0 ? 'destructive' : undefined,
+    });
     fetchItems();
   };
 
