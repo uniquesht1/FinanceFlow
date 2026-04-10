@@ -20,7 +20,7 @@ const ACCOUNT_ICONS: Record<string, React.FC<{ className?: string }>> = {
 };
 
 const Accounts: React.FC = () => {
-  const { accounts, deleteAccount, loading } = useFinance();
+  const { accounts, deleteAccount, loading, hideMoney } = useFinance();
   const [showForm, setShowForm] = useState(false);
   const [editAccount, setEditAccount] = useState<Account | undefined>();
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -126,14 +126,16 @@ const Accounts: React.FC = () => {
                             : 'text-destructive'
                         )}
                       >
-                        {formatCurrency(balance, account.currency)}
+                        {hideMoney ? '******' : formatCurrency(balance, account.currency)}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Starting:{' '}
-                        {formatCurrency(
-                          Number(account.starting_balance),
-                          account.currency
-                        )}
+                        {hideMoney
+                          ? '******'
+                          : formatCurrency(
+                            Number(account.starting_balance),
+                            account.currency
+                          )}
                       </p>
                     </CardContent>
                   </Card>

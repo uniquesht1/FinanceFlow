@@ -11,7 +11,7 @@ import { AccountFilter } from '@/components/dashboard/AccountFilter';
 import { CurrencyFilter } from '@/components/dashboard/CurrencyFilter';
 import { useFinance } from '@/contexts/FinanceContext';
 import { Button } from '@/components/ui/button';
-import { Plus, Sparkles } from 'lucide-react';
+import { Eye, EyeOff, Plus, Sparkles } from 'lucide-react';
 import { TransactionForm } from '@/components/forms/TransactionForm';
 import { LoadingPage } from '@/components/ui/loading-spinner';
 import { startOfMonth, endOfMonth, startOfYear, endOfYear, isWithinInterval, parseISO, format } from 'date-fns';
@@ -27,7 +27,7 @@ import {
 type Period = 'this-month' | 'this-year' | 'all';
 
 const Dashboard: React.FC = () => {
-  const { accounts, transactions, selectedAccountId, selectedCurrency, loading } = useFinance();
+  const { accounts, transactions, selectedAccountId, selectedCurrency, loading, hideMoney, toggleHideMoney } = useFinance();
   const [showTransactionForm, setShowTransactionForm] = React.useState(false);
   const [period, setPeriod] = React.useState<Period>('this-month');
 
@@ -124,9 +124,19 @@ const Dashboard: React.FC = () => {
               </h1>
               <p className="text-muted-foreground text-sm">{subtitleLabel}</p>
             </div>
-            <Button onClick={() => setShowTransactionForm(true)} className="group shadow-lg shadow-primary/25">
-              <Plus className="h-4 w-4 mr-2" /> Add Transaction
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={toggleHideMoney}
+                aria-label={hideMoney ? 'Show money values' : 'Hide money values'}
+              >
+                {hideMoney ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+              <Button onClick={() => setShowTransactionForm(true)} className="group shadow-lg shadow-primary/25">
+                <Plus className="h-4 w-4 mr-2" /> Add Transaction
+              </Button>
+            </div>
           </div>
 
           <WelcomeCard />

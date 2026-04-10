@@ -26,7 +26,7 @@ export const CurrencyFilter: React.FC = () => {
     availableCurrencies,
     selectedCurrency,
     setSelectedCurrency,
-    selectedAccountId
+    selectedAccountId,
   } = useFinance();
 
   // Only show when there are multiple currencies and "All Accounts" is selected

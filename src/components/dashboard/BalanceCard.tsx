@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp, TrendingDown, Wallet } from 'lucide-react';
 import { cn, formatCurrency } from '@/lib/utils';
+import { useFinance } from '@/contexts/FinanceContext';
 
 interface BalanceCardProps {
   title: string;
@@ -18,6 +19,7 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
   type = 'total',
   className,
 }) => {
+  const { hideMoney } = useFinance();
   const [displayAmount, setDisplayAmount] = useState(0);
 
   // Animated counter effect
@@ -115,10 +117,16 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
             getAmountColor()
           )}
         >
-          {type === 'expense' && displayAmount > 0 && '-'}
-          {type === 'total'
-            ? formatCurrency(displayAmount, currency)
-            : formatCurrency(Math.abs(displayAmount), currency)}
+          {hideMoney
+            ? 'XXxx'
+            : (
+              <>
+                {type === 'expense' && displayAmount > 0 && '-'}
+                {type === 'total'
+                  ? formatCurrency(displayAmount, currency)
+                  : formatCurrency(Math.abs(displayAmount), currency)}
+              </>
+            )}
         </div>
       </CardContent>
     </Card>
