@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { AccountForm } from '@/components/forms/AccountForm';
 import { useFinance, Account } from '@/contexts/FinanceContext';
@@ -20,30 +20,10 @@ const ACCOUNT_ICONS: Record<string, React.FC<{ className?: string }>> = {
 };
 
 const Accounts: React.FC = () => {
-  const { accounts, transactions, deleteAccount, loading } = useFinance();
+  const { accounts, deleteAccount, loading } = useFinance();
   const [showForm, setShowForm] = useState(false);
   const [editAccount, setEditAccount] = useState<Account | undefined>();
   const [deleteId, setDeleteId] = useState<string | null>(null);
-
-  const accountBalances = useMemo(() => {
-    const balances: Record<string, number> = {};
-
-    accounts.forEach((account) => {
-      let income = 0;
-      let expenses = 0;
-
-      transactions.forEach((t) => {
-        if (t.account_id !== account.id) return;
-        if (t.type === 'income') income += Number(t.amount);
-        if (t.type === 'expense') expenses += Number(t.amount);
-      });
-
-      balances[account.id] =
-        Number(account.starting_balance) + income - expenses;
-    });
-
-    return balances;
-  }, [accounts, transactions]);
 
   const handleEdit = (account: Account) => {
     setEditAccount(account);
@@ -95,7 +75,7 @@ const Accounts: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {accounts.map((account) => {
                 const Icon = ACCOUNT_ICONS[account.type] || Wallet;
-                const balance = accountBalances[account.id] || 0;
+                const balance = Number(account.current_balance);
 
                 return (
                   <Card

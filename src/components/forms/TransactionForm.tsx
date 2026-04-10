@@ -60,6 +60,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const { formatDateTimeLocalValue, parseDateTimeLocalValue } = useTimezone();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const wasOpenRef = React.useRef(false);
 
   const getDefaultDateTime = () => {
     // datetime-local expects a "wall-clock" value, not UTC ISO.
@@ -78,7 +79,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   });
 
   React.useEffect(() => {
-    if (open) {
+    const openingNow = open && !wasOpenRef.current;
+
+    if (openingNow) {
       const defaultDateTime = formatDateTimeLocalValue(new Date());
       setFormData({
         type: initialValues?.type || transaction?.type || 'expense',
@@ -91,6 +94,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         title: transaction?.title || ''
       });
     }
+
+    wasOpenRef.current = open;
   }, [open, transaction, accounts, initialValues, formatDateTimeLocalValue]);
 
   const isTransfer = formData.type === 'transfer' || transaction?.is_transfer;

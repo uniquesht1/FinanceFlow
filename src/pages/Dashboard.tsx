@@ -43,8 +43,8 @@ const Dashboard: React.FC = () => {
     const accountIds = new Set(currencyFilteredAccounts.map(a => a.id));
     const baseTransactions = transactions.filter((t) => accountIds.has(t.account_id));
 
-    // Uses the pre-calculated DB field we added in the migration
-    const startingBalance = currencyFilteredAccounts.reduce((sum, a) => sum + Number(a.current_balance), 0);
+    // Total balance is the sum of DB-maintained current_balance for the selected account scope.
+    const totalCurrentBalance = currencyFilteredAccounts.reduce((sum, a) => sum + Number(a.current_balance), 0);
 
     const filteredTxs = baseTransactions.filter((t) => {
       const txDate = parseISO(t.date);
@@ -64,10 +64,10 @@ const Dashboard: React.FC = () => {
       .reduce((sum, t) => sum + Number(t.amount), 0);
 
     const selectedAccount = selectedAccountId ? accounts.find(a => a.id === selectedAccountId) : null;
-    const accountCurrency = selectedAccount?.currency || selectedCurrency || 'USD';
+    const accountCurrency = selectedAccount?.currency || selectedCurrency || 'NPR';
 
     return {
-      totalBalance: startingBalance,
+      totalBalance: totalCurrentBalance,
       periodIncome: income,
       periodExpenses: expenses,
       periodTransactions: filteredTxs,

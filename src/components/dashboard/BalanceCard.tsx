@@ -115,8 +115,10 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
             getAmountColor()
           )}
         >
-          {type === 'expense' && amount > 0 && '-'}
-          {formatCurrency(Math.abs(displayAmount), currency)}
+          {type === 'expense' && displayAmount > 0 && '-'}
+          {type === 'total'
+            ? formatCurrency(displayAmount, currency)
+            : formatCurrency(Math.abs(displayAmount), currency)}
         </div>
       </CardContent>
     </Card>
