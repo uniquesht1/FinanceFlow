@@ -22,11 +22,11 @@ const getCurrencySymbol = (currency: string): string => {
 };
 
 export const CurrencyFilter: React.FC = () => {
-  const { 
-    availableCurrencies, 
-    selectedCurrency, 
-    setSelectedCurrency, 
-    selectedAccountId 
+  const {
+    availableCurrencies,
+    selectedCurrency,
+    setSelectedCurrency,
+    selectedAccountId
   } = useFinance();
 
   // Only show when there are multiple currencies and "All Accounts" is selected
@@ -46,8 +46,8 @@ export const CurrencyFilter: React.FC = () => {
           onClick={() => setSelectedCurrency(currency)}
           className={cn(
             'transition-all duration-200 hover:scale-105',
-            selectedCurrency === currency 
-              ? 'shadow-md shadow-primary/25' 
+            selectedCurrency === currency
+              ? 'shadow-md shadow-primary/25'
               : 'hover:border-primary/50'
           )}
           style={{ animationDelay: `${(index + 1) * 50}ms` }}

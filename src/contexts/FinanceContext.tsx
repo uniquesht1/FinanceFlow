@@ -96,20 +96,26 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return currencies.sort();
   }, [accounts]);
 
-  // Auto-select first currency when accounts load and no currency is selected
+  // Auto-select default currency (prefer NPR) when accounts load and no currency is selected
   React.useEffect(() => {
     if (availableCurrencies.length > 0 && selectedCurrency === null && selectedAccountId === null) {
-      setSelectedCurrency(availableCurrencies[0]);
+      const preferredCurrency = availableCurrencies.includes('NPR')
+        ? 'NPR'
+        : availableCurrencies[0];
+      setSelectedCurrency(preferredCurrency);
     }
   }, [availableCurrencies, selectedCurrency, selectedAccountId]);
 
-  // When selecting an account, auto-set currency; when selecting "All", default to first currency
+  // When selecting an account, auto-set currency; when selecting "All", default to NPR if available
   const setSelectedAccountId = (id: string | null) => {
     setSelectedAccountIdState(id);
     if (id === null) {
-      // "All Accounts" selected - default to first available currency
+      // "All Accounts" selected - default to NPR when available
       if (availableCurrencies.length > 0) {
-        setSelectedCurrency(availableCurrencies[0]);
+        const preferredCurrency = availableCurrencies.includes('NPR')
+          ? 'NPR'
+          : availableCurrencies[0];
+        setSelectedCurrency(preferredCurrency);
       }
     } else {
       // Specific account selected - set its currency
