@@ -24,11 +24,14 @@ interface FinanceContextType {
 
   // State
   loading: boolean;
+  hideMoney: boolean;
 
   // Filter actions
   setSelectedAccountId: (id: string | null) => void;
   setSelectedCurrency: (currency: string | null) => void;
   setDateRange: (range: DateRange) => void;
+  setHideMoney: (hide: boolean) => void;
+  toggleHideMoney: () => void;
 
   // Data actions
   refreshData: () => Promise<void>;
@@ -88,7 +91,30 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [selectedCurrency, setSelectedCurrency] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange>({ from: null, to: null });
   const [loading, setLoading] = useState(true);
+  const [hideMoney, setHideMoney] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    try {
+      const stored = window.localStorage.getItem('finance.hideMoney');
+      if (stored === null) return true;
+      return stored === 'true';
+    } catch {
+      return true;
+    }
+  });
   const fetchInFlightRef = useRef<Promise<void> | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem('finance.hideMoney', String(hideMoney));
+    } catch {
+      // Ignore storage failures and keep in-memory state.
+    }
+  }, [hideMoney]);
+
+  const toggleHideMoney = () => {
+    setHideMoney((prev) => !prev);
+  };
 
   // Compute available currencies from accounts
   const availableCurrencies = React.useMemo(() => {
@@ -495,9 +521,12 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     dateRange,
     availableCurrencies,
     loading,
+    hideMoney,
     setSelectedAccountId,
     setSelectedCurrency,
     setDateRange,
+    setHideMoney,
+    toggleHideMoney,
     refreshData: fetchData,
     addAccount,
     updateAccount,

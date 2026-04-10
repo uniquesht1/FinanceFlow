@@ -6,6 +6,7 @@ import { ArrowUpRight, ArrowDownRight, Clock, ChevronRight } from 'lucide-react'
 import { cn, formatCurrency } from '@/lib/utils';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Transaction } from '@/types';
+import { useFinance } from '@/contexts/FinanceContext';
 
 interface RecentTransactionsProps {
   transactions: Transaction[];
@@ -13,6 +14,7 @@ interface RecentTransactionsProps {
 
 export const RecentTransactions: React.FC<RecentTransactionsProps> = ({ transactions }) => {
   const navigate = useNavigate();
+  const { hideMoney } = useFinance();
   const recentTransactions = React.useMemo(() => transactions.slice(0, 5), [transactions]);
 
   const handleClick = React.useCallback(() => {
@@ -76,8 +78,14 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({ transact
                     transaction.type === 'income' ? 'text-emerald-500' : 'text-red-500'
                   )}
                 >
-                  {transaction.type === 'income' ? '+' : '-'}
-                  {formatCurrency(Number(transaction.amount), transaction.account?.currency || 'USD')}
+                  {hideMoney
+                    ? 'XXxx'
+                    : (
+                      <>
+                        {transaction.type === 'income' ? '+' : '-'}
+                        {formatCurrency(Number(transaction.amount), transaction.account?.currency || 'USD')}
+                      </>
+                    )}
                 </div>
               </div>
             ))}
