@@ -10,17 +10,17 @@ import { FinanceProvider } from "./contexts/FinanceContext";
 import { TimezoneProvider } from "./contexts/TimezoneContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import Dashboard from "./pages/Dashboard";
+import Transactions from "./pages/Transactions";
+import Accounts from "./pages/Accounts";
+import Categories from "./pages/Categories";
+import Settings from "./pages/Settings";
+import Budgeting from "./pages/Budgeting";
+import Budgets from "./pages/Budgets";
+import RecurringTransactions from "./pages/RecurringTransactions";
 
-const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Auth = lazy(() => import("./pages/Auth"));
-const Transactions = lazy(() => import("./pages/Transactions"));
-const Accounts = lazy(() => import("./pages/Accounts"));
-const Categories = lazy(() => import("./pages/Categories"));
-const Settings = lazy(() => import("./pages/Settings"));
-const Budgeting = lazy(() => import("./pages/Budgeting"));
-const Budgets = lazy(() => import("./pages/Budgets"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
-const RecurringTransactions = lazy(() => import("./pages/RecurringTransactions"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const queryClient = new QueryClient();

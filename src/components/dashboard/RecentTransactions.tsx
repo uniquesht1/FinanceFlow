@@ -79,7 +79,7 @@ export const RecentTransactions: React.FC<RecentTransactionsProps> = ({ transact
                   )}
                 >
                   {hideMoney
-                    ? 'XXxx'
+                    ? 'XX xx'
                     : (
                       <>
                         {transaction.type === 'income' ? '+' : '-'}

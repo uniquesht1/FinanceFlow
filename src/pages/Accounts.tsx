@@ -126,12 +126,12 @@ const Accounts: React.FC = () => {
                             : 'text-destructive'
                         )}
                       >
-                        {hideMoney ? '******' : formatCurrency(balance, account.currency)}
+                        {hideMoney ? 'XX xx' : formatCurrency(balance, account.currency)}
                       </p>
                       <p className="text-sm text-muted-foreground">
                         Starting:{' '}
                         {hideMoney
-                          ? '******'
+                          ? 'XX xx'
                           : formatCurrency(
                             Number(account.starting_balance),
                             account.currency

@@ -118,7 +118,7 @@ export const BalanceCard: React.FC<BalanceCardProps> = ({
           )}
         >
           {hideMoney
-            ? 'XXxx'
+            ? 'XX xx'
             : (
               <>
                 {type === 'expense' && displayAmount > 0 && '-'}
