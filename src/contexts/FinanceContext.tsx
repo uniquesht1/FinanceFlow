@@ -184,9 +184,31 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (categoriesResult.error) throw categoriesResult.error;
         if (transactionsResult.error) throw transactionsResult.error;
 
-        setAccounts(accountsResult.data ?? []);
+        const rawAccounts = accountsResult.data ?? [];
+        const rawTransactions = transactionsResult.data ?? [];
+
+        // Calculate correct current_balance dynamically on the client side
+        const calculatedAccounts = rawAccounts.map(account => {
+          const accountTransactions = rawTransactions.filter(t => t.account_id === account.id);
+          const balance = Number(account.starting_balance) + accountTransactions.reduce((sum, t) => {
+            const amount = Number(t.amount);
+            if (t.type === 'income') {
+              return sum + amount;
+            } else if (t.type === 'expense') {
+              return sum - amount;
+            }
+            return sum;
+          }, 0);
+
+          return {
+            ...account,
+            current_balance: Math.round(balance * 100) / 100
+          };
+        });
+
+        setAccounts(calculatedAccounts);
         setCategories((categoriesResult.data ?? []) as Category[]);
-        setTransactions((transactionsResult.data ?? []) as Transaction[]);
+        setTransactions(rawTransactions as Transaction[]);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error occurred';
         toast({ title: 'Error loading data', description: message, variant: 'destructive' });
