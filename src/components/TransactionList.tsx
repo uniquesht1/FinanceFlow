@@ -40,7 +40,7 @@ type QuickPeriod = 'this-month' | 'this-year' | 'all' | 'custom';
 type PageSizeOption = '20' | '50' | '100' | 'all';
 
 export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initialDate, onDateClear }) => {
-  const { transactions, categories, deleteTransaction, selectedAccountId, accounts, updateTransaction } = useFinance();
+  const { transactions, categories, deleteTransaction, selectedAccountId, accounts } = useFinance();
   const { formatDateInTimezone } = useTimezone();
 
   const [search, setSearch] = useState('');
@@ -102,8 +102,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
   const [pageSize, setPageSize] = useState<PageSizeOption>('20');
   const [currentPage, setCurrentPage] = useState(1);
   const [groupBy, setGroupBy] = useState<'day' | 'category'>('day');
-  const [selectedTxIds, setSelectedTxIds] = useState<Set<string>>(new Set());
-  const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -134,52 +132,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
     setCurrentPage(1);
     onDateClear?.();
   };
-
-  const handleBulkCategorize = async (catId: string) => {
-    try {
-      const promises = Array.from(selectedTxIds).map(id => {
-        return updateTransaction(id, {
-          category_id: catId
-        });
-      });
-      await Promise.all(promises);
-      toast({
-        title: 'Success',
-        description: `Successfully categorized ${selectedTxIds.size} transactions.`,
-      });
-      setSelectedTxIds(new Set());
-    } catch (err) {
-      toast({
-        title: 'Error',
-        description: 'Failed to categorize some transactions.',
-        variant: 'destructive'
-      });
-    }
-  };
-
-  const handleBulkDelete = async () => {
-    try {
-      const promises = Array.from(selectedTxIds).map(id => deleteTransaction(id));
-      await Promise.all(promises);
-      toast({
-        title: 'Success',
-        description: `Successfully deleted ${selectedTxIds.size} transactions.`,
-      });
-      setSelectedTxIds(new Set());
-    } catch (err) {
-      toast({
-        title: 'Error',
-        description: 'Failed to delete some transactions.',
-        variant: 'destructive'
-      });
-    } finally {
-      setIsBulkDeleteConfirmOpen(false);
-    }
-  };
-
-  useEffect(() => {
-    setSelectedTxIds(new Set());
-  }, [search, categoryFilter, typeFilter, period, startDate, endDate, selectedAccountId, pageSize, groupBy]);
 
   const filteredTransactions = useMemo(() => {
     const now = new Date();
@@ -228,7 +180,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, categoryFilter, typeFilter, period, startDate, endDate, selectedAccountId, pageSize, groupBy]);
+  }, [search, categoryFilter, typeFilter, period, startDate, endDate, selectedAccountId, pageSize]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -389,34 +341,8 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
         )}
       </div>
 
-      {filteredTransactions.length > 0 && (
-        <div className="flex items-center justify-between -mb-2 border-b border-border/10 pb-2">
-          <div className="flex items-center gap-2 pl-1">
-            <input
-              type="checkbox"
-              checked={paginatedTransactions.length > 0 && paginatedTransactions.every(t => selectedTxIds.has(t.id))}
-              ref={(el) => {
-                if (el) {
-                  const some = paginatedTransactions.some(t => selectedTxIds.has(t.id));
-                  const all = paginatedTransactions.every(t => selectedTxIds.has(t.id));
-                  el.indeterminate = some && !all;
-                }
-              }}
-              onChange={(e) => {
-                const next = new Set(selectedTxIds);
-                paginatedTransactions.forEach(t => {
-                  if (e.target.checked) {
-                    next.add(t.id);
-                  } else {
-                    next.delete(t.id);
-                  }
-                });
-                setSelectedTxIds(next);
-              }}
-              className="h-4 w-4 rounded border-border bg-background text-primary focus:ring-primary cursor-pointer shrink-0"
-            />
-            <span className="text-xs text-muted-foreground select-none font-medium">Select page</span>
-          </div>
+      {filteredTransactions.length > 0 && totalPages > 1 && (
+        <div className="flex justify-end -mb-2">
           {renderPaginationControls()}
         </div>
       )}
@@ -434,21 +360,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
                 {txs.map((transaction) => (
                   <div key={transaction.id} onClick={() => setSelectedTransaction(transaction)} className="group flex items-center justify-between p-3 bg-card border border-border/50 rounded-xl hover:border-primary/40 transition-all cursor-pointer">
                     <div className="flex items-center gap-3 min-w-0">
-                      <input
-                        type="checkbox"
-                        checked={selectedTxIds.has(transaction.id)}
-                        onChange={(e) => {
-                          const next = new Set(selectedTxIds);
-                          if (e.target.checked) {
-                            next.add(transaction.id);
-                          } else {
-                            next.delete(transaction.id);
-                          }
-                          setSelectedTxIds(next);
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                        className="h-4 w-4 rounded border-border bg-background text-primary focus:ring-primary cursor-pointer shrink-0"
-                      />
                       <div className={cn('p-2 rounded-full', transaction.type === 'income' ? 'bg-emerald-500/10' : 'bg-destructive/10')}>
                         {transaction.type === 'income' ? <ArrowUpRight className="h-4 w-4 text-emerald-500" /> : <ArrowDownRight className="h-4 w-4 text-destructive" />}
                       </div>
@@ -511,53 +422,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
       )}
 
       <ConfirmDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)} title="Delete Transaction" description="This cannot be undone." onConfirm={() => deleteId && deleteTransaction(deleteId)} />
-      <ConfirmDialog
-        open={isBulkDeleteConfirmOpen}
-        onOpenChange={setIsBulkDeleteConfirmOpen}
-        title="Delete Multiple Transactions"
-        description={`Are you sure you want to delete ${selectedTxIds.size} transactions? This cannot be undone.`}
-        onConfirm={handleBulkDelete}
-      />
       <TransactionDetailDialog transaction={selectedTransaction} open={!!selectedTransaction} onOpenChange={(open) => !open && setSelectedTransaction(null)} />
-
-      {selectedTxIds.size > 0 && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center justify-between gap-4 bg-popover border border-border shadow-lg rounded-full px-5 py-3 w-[95%] sm:w-auto min-w-[320px] max-w-[550px] animate-in fade-in slide-in-from-bottom-4 duration-200">
-          <span className="text-xs font-semibold text-foreground whitespace-nowrap">{selectedTxIds.size} selected</span>
-          <div className="flex items-center gap-2">
-            <Select onValueChange={handleBulkCategorize}>
-              <SelectTrigger className="h-8 text-xs w-[150px] bg-background">
-                <SelectValue placeholder="Categorize selected" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map((cat) => (
-                  <SelectItem key={cat.id} value={cat.id}>
-                    {cat.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Button
-              variant="destructive"
-              size="sm"
-              className="h-8 text-xs font-semibold gap-1 rounded-full px-3"
-              onClick={() => setIsBulkDeleteConfirmOpen(true)}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              Delete
-            </Button>
-
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-8 text-xs rounded-full hover:bg-muted"
-              onClick={() => setSelectedTxIds(new Set())}
-            >
-              Cancel
-            </Button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
