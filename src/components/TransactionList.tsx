@@ -28,6 +28,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { TransactionDetailDialog } from '@/components/TransactionDetailDialog';
 import { DateFilterPopover } from '@/components/DateFilterPopover';
 import { cn, formatCurrency } from '@/lib/utils';
+import type { Account } from '@/types';
 
 interface TransactionListProps {
   onEdit: (transaction: Transaction) => void;
@@ -39,20 +40,70 @@ type QuickPeriod = 'this-month' | 'this-year' | 'all' | 'custom';
 type PageSizeOption = '20' | '50' | '100' | 'all';
 
 export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initialDate, onDateClear }) => {
-  const { transactions, categories, deleteTransaction, selectedAccountId } = useFinance();
+  const { transactions, categories, deleteTransaction, selectedAccountId, accounts, updateTransaction } = useFinance();
   const { formatDateInTimezone } = useTimezone();
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [period, setPeriod] = useState<QuickPeriod>(initialDate ? 'custom' : 'this-month');
+  const [period, setPeriod] = useState<QuickPeriod>(initialDate ? 'custom' : 'all');
+
+  // Compute running balance for each transaction anchored to current_balance (DB ground truth).
+  // We work BACKWARDS from the most recent transaction so the latest tx always shows the
+  // correct live balance, and older txs show what the balance was at that point in time.
+  const runningBalances = useMemo(() => {
+    const balances: Record<string, number> = {};
+
+    // Group transactions by account
+    const txByAccount: Record<string, Transaction[]> = {};
+    transactions.forEach((tx) => {
+      if (!txByAccount[tx.account_id]) txByAccount[tx.account_id] = [];
+      txByAccount[tx.account_id].push(tx);
+    });
+
+    // For each account, sort newest → oldest then walk backwards from current_balance
+    accounts.forEach((acc) => {
+      const accTxs = txByAccount[acc.id] || [];
+
+      // Sort newest first lexicographically (extremely robust against parse issues)
+      const sorted = [...accTxs].sort((a, b) => {
+        const dateCompare = b.date.localeCompare(a.date);
+        if (dateCompare !== 0) return dateCompare;
+
+        const createdA = a.created_at || '';
+        const createdB = b.created_at || '';
+        return createdB.localeCompare(createdA);
+      });
+
+      // Anchor to the DB-maintained current_balance (correct ground truth) with strict fallback
+      const startingBal = Number(acc.starting_balance || 0);
+      let runningBal = Number(
+        acc.current_balance !== null && acc.current_balance !== undefined
+          ? acc.current_balance
+          : startingBal
+      );
+
+      sorted.forEach((tx) => {
+        // The balance displayed for this tx is the balance AFTER it was applied
+        balances[tx.id] = Math.round(runningBal * 100) / 100;
+        // Walk backwards: undo this tx to get balance before it
+        if (tx.type === 'income') runningBal -= Number(tx.amount);
+        else if (tx.type === 'expense') runningBal += Number(tx.amount);
+      });
+    });
+
+    return balances;
+  }, [transactions, accounts]);
   const [startDate, setStartDate] = useState<Date | undefined>(initialDate);
   const [endDate, setEndDate] = useState<Date | undefined>(initialDate);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [pageSize, setPageSize] = useState<PageSizeOption>('20');
   const [currentPage, setCurrentPage] = useState(1);
+  const [groupBy, setGroupBy] = useState<'day' | 'category'>('day');
+  const [selectedTxIds, setSelectedTxIds] = useState<Set<string>>(new Set());
+  const [isBulkDeleteConfirmOpen, setIsBulkDeleteConfirmOpen] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -67,7 +118,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
       Boolean(search.trim()) ||
       categoryFilter !== 'all' ||
       typeFilter !== 'all' ||
-      period !== 'this-month' ||
+      period !== 'all' ||
       Boolean(startDate) ||
       Boolean(endDate),
     [search, categoryFilter, typeFilter, period, startDate, endDate]
@@ -77,12 +128,58 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
     setSearch('');
     setCategoryFilter('all');
     setTypeFilter('all');
-    setPeriod('this-month');
+    setPeriod('all');
     setStartDate(undefined);
     setEndDate(undefined);
     setCurrentPage(1);
     onDateClear?.();
   };
+
+  const handleBulkCategorize = async (catId: string) => {
+    try {
+      const promises = Array.from(selectedTxIds).map(id => {
+        return updateTransaction(id, {
+          category_id: catId
+        });
+      });
+      await Promise.all(promises);
+      toast({
+        title: 'Success',
+        description: `Successfully categorized ${selectedTxIds.size} transactions.`,
+      });
+      setSelectedTxIds(new Set());
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: 'Failed to categorize some transactions.',
+        variant: 'destructive'
+      });
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    try {
+      const promises = Array.from(selectedTxIds).map(id => deleteTransaction(id));
+      await Promise.all(promises);
+      toast({
+        title: 'Success',
+        description: `Successfully deleted ${selectedTxIds.size} transactions.`,
+      });
+      setSelectedTxIds(new Set());
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: 'Failed to delete some transactions.',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsBulkDeleteConfirmOpen(false);
+    }
+  };
+
+  useEffect(() => {
+    setSelectedTxIds(new Set());
+  }, [search, categoryFilter, typeFilter, period, startDate, endDate, selectedAccountId, pageSize, groupBy]);
 
   const filteredTransactions = useMemo(() => {
     const now = new Date();
@@ -131,7 +228,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, categoryFilter, typeFilter, period, startDate, endDate, selectedAccountId, pageSize]);
+  }, [search, categoryFilter, typeFilter, period, startDate, endDate, selectedAccountId, pageSize, groupBy]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -150,12 +247,17 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
   const groupedTransactions = useMemo(() => {
     const groups: Record<string, Transaction[]> = {};
     paginatedTransactions.forEach(t => {
-      const dateKey = format(parseISO(t.date), 'yyyy-MM-dd');
-      if (!groups[dateKey]) groups[dateKey] = [];
-      groups[dateKey].push(t);
+      let key = '';
+      if (groupBy === 'day') {
+        key = format(parseISO(t.date), 'yyyy-MM-dd');
+      } else {
+        key = t.is_transfer ? 'Transfer' : (t.category?.name || 'Uncategorized');
+      }
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(t);
     });
     return groups;
-  }, [paginatedTransactions]);
+  }, [paginatedTransactions, groupBy]);
 
   const pageStart = totalTransactions === 0 ? 0 : (pageSize === 'all' ? 1 : (currentPage - 1) * resolvedPageSize + 1);
   const pageEnd = totalTransactions === 0 ? 0 : (pageSize === 'all' ? totalTransactions : Math.min(currentPage * resolvedPageSize, totalTransactions));
@@ -173,6 +275,54 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
 
     return Array.from(pages).sort((a, b) => a - b);
   }, [currentPage, totalPages]);
+
+  const renderPaginationControls = () => {
+    if (totalPages <= 1) return null;
+    return (
+      <div className="flex items-center gap-1">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          disabled={currentPage === 1}
+          aria-label="Previous page"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+
+        {visiblePages.map((page, idx) => {
+          const previous = visiblePages[idx - 1];
+          const shouldShowGap = previous !== undefined && page - previous > 1;
+
+          return (
+            <React.Fragment key={page}>
+              {shouldShowGap && <span className="px-1 text-xs text-muted-foreground select-none">...</span>}
+              <Button
+                variant={page === currentPage ? 'default' : 'outline'}
+                size="icon"
+                className="h-8 w-8 text-xs font-medium"
+                onClick={() => setCurrentPage(page)}
+              >
+                {page}
+              </Button>
+            </React.Fragment>
+          );
+        })}
+
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+          disabled={currentPage === totalPages}
+          aria-label="Next page"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  };
 
   const getDateHeader = (dateStr: string) => {
     const date = parseISO(dateStr);
@@ -221,45 +371,84 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
           startDate={startDate} endDate={endDate}
           onStartDateChange={(d) => { setStartDate(d); setPeriod('custom'); }}
           onEndDateChange={(d) => { setEndDate(d); setPeriod('custom'); }}
-          onClear={() => { setPeriod('this-month'); setStartDate(undefined); setEndDate(undefined); onDateClear?.(); }}
+          onClear={() => { setPeriod('all'); setStartDate(undefined); setEndDate(undefined); onDateClear?.(); }}
         />
+        <Select value={groupBy} onValueChange={(v: 'day' | 'category') => setGroupBy(v)}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Group by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="day">Group by Day</SelectItem>
+            <SelectItem value="category">Group by Category</SelectItem>
+          </SelectContent>
+        </Select>
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-muted-foreground hover:text-foreground h-9 px-3">
+            Clear all filters
+          </Button>
+        )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/50 bg-card px-3 py-2">
-        <p className="text-sm text-muted-foreground">
-          Showing <span className="font-medium text-foreground">{pageStart}-{pageEnd}</span> of <span className="font-medium text-foreground">{filteredTransactions.length}</span> transaction{filteredTransactions.length !== 1 ? 's' : ''}
-        </p>
-        <div className="flex items-center gap-2">
-          <Select value={pageSize} onValueChange={(value) => setPageSize(value as PageSizeOption)}>
-            <SelectTrigger className="w-[140px] h-8">
-              <SelectValue placeholder="Page size" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="20">Show 20</SelectItem>
-              <SelectItem value="50">Show 50</SelectItem>
-              <SelectItem value="100">Show 100</SelectItem>
-              <SelectItem value="all">Show All</SelectItem>
-            </SelectContent>
-          </Select>
-          {hasActiveFilters && (
-            <Button variant="ghost" size="sm" onClick={clearAllFilters}>
-              Clear all filters
-            </Button>
-          )}
+      {filteredTransactions.length > 0 && (
+        <div className="flex items-center justify-between -mb-2 border-b border-border/10 pb-2">
+          <div className="flex items-center gap-2 pl-1">
+            <input
+              type="checkbox"
+              checked={paginatedTransactions.length > 0 && paginatedTransactions.every(t => selectedTxIds.has(t.id))}
+              ref={(el) => {
+                if (el) {
+                  const some = paginatedTransactions.some(t => selectedTxIds.has(t.id));
+                  const all = paginatedTransactions.every(t => selectedTxIds.has(t.id));
+                  el.indeterminate = some && !all;
+                }
+              }}
+              onChange={(e) => {
+                const next = new Set(selectedTxIds);
+                paginatedTransactions.forEach(t => {
+                  if (e.target.checked) {
+                    next.add(t.id);
+                  } else {
+                    next.delete(t.id);
+                  }
+                });
+                setSelectedTxIds(next);
+              }}
+              className="h-4 w-4 rounded border-border bg-background text-primary focus:ring-primary cursor-pointer shrink-0"
+            />
+            <span className="text-xs text-muted-foreground select-none font-medium">Select page</span>
+          </div>
+          {renderPaginationControls()}
         </div>
-      </div>
+      )}
 
       <div className="space-y-6">
         {Object.keys(groupedTransactions).length === 0 ? (
           <EmptyState icon={<Search className="h-8 w-8" />} title="No matches found" description={hasActiveFilters ? 'Try removing one or more filters.' : 'Your transactions will appear here once you add them.'} />
         ) : (
-          Object.entries(groupedTransactions).map(([dateStr, txs]) => (
-            <div key={dateStr} className="space-y-2">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider pl-1">{getDateHeader(dateStr)}</h3>
+          Object.entries(groupedTransactions).map(([groupKey, txs]) => (
+            <div key={groupKey} className="space-y-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider pl-1">
+                {groupBy === 'day' ? getDateHeader(groupKey) : groupKey}
+              </h3>
               <div className="space-y-1">
                 {txs.map((transaction) => (
                   <div key={transaction.id} onClick={() => setSelectedTransaction(transaction)} className="group flex items-center justify-between p-3 bg-card border border-border/50 rounded-xl hover:border-primary/40 transition-all cursor-pointer">
                     <div className="flex items-center gap-3 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={selectedTxIds.has(transaction.id)}
+                        onChange={(e) => {
+                          const next = new Set(selectedTxIds);
+                          if (e.target.checked) {
+                            next.add(transaction.id);
+                          } else {
+                            next.delete(transaction.id);
+                          }
+                          setSelectedTxIds(next);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-4 w-4 rounded border-border bg-background text-primary focus:ring-primary cursor-pointer shrink-0"
+                      />
                       <div className={cn('p-2 rounded-full', transaction.type === 'income' ? 'bg-emerald-500/10' : 'bg-destructive/10')}>
                         {transaction.type === 'income' ? <ArrowUpRight className="h-4 w-4 text-emerald-500" /> : <ArrowDownRight className="h-4 w-4 text-destructive" />}
                       </div>
@@ -272,9 +461,16 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
                       </div>
                     </div>
                     <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                      <span className={cn('text-sm font-bold tabular-nums text-right', transaction.type === 'income' ? 'text-emerald-500' : 'text-destructive')}>
-                        {transaction.type === 'income' ? '+' : '-'}{formatCurrency(Number(transaction.amount), transaction.account?.currency)}
-                      </span>
+                      <div className="flex flex-col items-end">
+                        <span className={cn('text-sm font-bold tabular-nums text-right', transaction.type === 'income' ? 'text-emerald-500' : 'text-destructive')}>
+                          {transaction.type === 'income' ? '+' : '-'}{formatCurrency(Number(transaction.amount), transaction.account?.currency)}
+                        </span>
+                        {runningBalances[transaction.id] !== undefined && (
+                          <span className="text-xs text-muted-foreground font-normal tabular-nums mt-0.5">
+                            Bal: {formatCurrency(runningBalances[transaction.id], transaction.account?.currency)}
+                          </span>
+                        )}
+                      </div>
                       <Button variant="ghost" size="icon" className="h-8 w-8 opacity-100 sm:opacity-0 sm:group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); setDeleteId(transaction.id); }}>
                         <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                       </Button>
@@ -287,51 +483,81 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
         )}
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Prev
-          </Button>
+      {filteredTransactions.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/60 pt-4 mt-6">
+          <p className="text-sm text-muted-foreground text-center sm:text-left order-2 sm:order-1">
+            Showing <span className="font-medium text-foreground">{pageStart}–{pageEnd}</span> of <span className="font-medium text-foreground">{filteredTransactions.length}</span> transaction{filteredTransactions.length !== 1 ? 's' : ''}
+          </p>
 
-          {visiblePages.map((page, idx) => {
-            const previous = visiblePages[idx - 1];
-            const shouldShowGap = previous !== undefined && page - previous > 1;
+          <div className="flex flex-wrap items-center justify-center gap-3.5 order-1 sm:order-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">Rows per page:</span>
+              <Select value={pageSize} onValueChange={(value) => setPageSize(value as PageSizeOption)}>
+                <SelectTrigger className="w-[85px] h-8 text-xs bg-background">
+                  <SelectValue placeholder="Page size" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-            return (
-              <React.Fragment key={page}>
-                {shouldShowGap && <span className="px-1 text-sm text-muted-foreground">...</span>}
-                <Button
-                  variant={page === currentPage ? 'default' : 'outline'}
-                  size="sm"
-                  className="min-w-9"
-                  onClick={() => setCurrentPage(page)}
-                >
-                  {page}
-                </Button>
-              </React.Fragment>
-            );
-          })}
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
-          >
-            Next
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+            {renderPaginationControls()}
+          </div>
         </div>
       )}
 
       <ConfirmDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)} title="Delete Transaction" description="This cannot be undone." onConfirm={() => deleteId && deleteTransaction(deleteId)} />
+      <ConfirmDialog
+        open={isBulkDeleteConfirmOpen}
+        onOpenChange={setIsBulkDeleteConfirmOpen}
+        title="Delete Multiple Transactions"
+        description={`Are you sure you want to delete ${selectedTxIds.size} transactions? This cannot be undone.`}
+        onConfirm={handleBulkDelete}
+      />
       <TransactionDetailDialog transaction={selectedTransaction} open={!!selectedTransaction} onOpenChange={(open) => !open && setSelectedTransaction(null)} />
+
+      {selectedTxIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center justify-between gap-4 bg-popover border border-border shadow-lg rounded-full px-5 py-3 w-[95%] sm:w-auto min-w-[320px] max-w-[550px] animate-in fade-in slide-in-from-bottom-4 duration-200">
+          <span className="text-xs font-semibold text-foreground whitespace-nowrap">{selectedTxIds.size} selected</span>
+          <div className="flex items-center gap-2">
+            <Select onValueChange={handleBulkCategorize}>
+              <SelectTrigger className="h-8 text-xs w-[150px] bg-background">
+                <SelectValue placeholder="Categorize selected" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="destructive"
+              size="sm"
+              className="h-8 text-xs font-semibold gap-1 rounded-full px-3"
+              onClick={() => setIsBulkDeleteConfirmOpen(true)}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-8 text-xs rounded-full hover:bg-muted"
+              onClick={() => setSelectedTxIds(new Set())}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
