@@ -28,6 +28,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { TransactionDetailDialog } from '@/components/TransactionDetailDialog';
 import { DateFilterPopover } from '@/components/DateFilterPopover';
 import { cn, formatCurrency } from '@/lib/utils';
+import type { Account } from '@/types';
 
 interface TransactionListProps {
   onEdit: (transaction: Transaction) => void;
@@ -39,14 +40,61 @@ type QuickPeriod = 'this-month' | 'this-year' | 'all' | 'custom';
 type PageSizeOption = '20' | '50' | '100' | 'all';
 
 export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initialDate, onDateClear }) => {
-  const { transactions, categories, deleteTransaction, selectedAccountId } = useFinance();
+  const { transactions, categories, deleteTransaction, selectedAccountId, accounts } = useFinance();
   const { formatDateInTimezone } = useTimezone();
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [period, setPeriod] = useState<QuickPeriod>(initialDate ? 'custom' : 'this-month');
+  const [period, setPeriod] = useState<QuickPeriod>(initialDate ? 'custom' : 'all');
+
+  // Compute running balance for each transaction anchored to current_balance (DB ground truth).
+  // We work BACKWARDS from the most recent transaction so the latest tx always shows the
+  // correct live balance, and older txs show what the balance was at that point in time.
+  const runningBalances = useMemo(() => {
+    const balances: Record<string, number> = {};
+
+    // Group transactions by account
+    const txByAccount: Record<string, Transaction[]> = {};
+    transactions.forEach((tx) => {
+      if (!txByAccount[tx.account_id]) txByAccount[tx.account_id] = [];
+      txByAccount[tx.account_id].push(tx);
+    });
+
+    // For each account, sort newest → oldest then walk backwards from current_balance
+    accounts.forEach((acc) => {
+      const accTxs = txByAccount[acc.id] || [];
+      
+      // Sort newest first lexicographically (extremely robust against parse issues)
+      const sorted = [...accTxs].sort((a, b) => {
+        const dateCompare = b.date.localeCompare(a.date);
+        if (dateCompare !== 0) return dateCompare;
+        
+        const createdA = a.created_at || '';
+        const createdB = b.created_at || '';
+        return createdB.localeCompare(createdA);
+      });
+
+      // Anchor to the DB-maintained current_balance (correct ground truth) with strict fallback
+      const startingBal = Number(acc.starting_balance || 0);
+      let runningBal = Number(
+        acc.current_balance !== null && acc.current_balance !== undefined
+          ? acc.current_balance
+          : startingBal
+      );
+
+      sorted.forEach((tx) => {
+        // The balance displayed for this tx is the balance AFTER it was applied
+        balances[tx.id] = Math.round(runningBal * 100) / 100;
+        // Walk backwards: undo this tx to get balance before it
+        if (tx.type === 'income') runningBal -= Number(tx.amount);
+        else if (tx.type === 'expense') runningBal += Number(tx.amount);
+      });
+    });
+
+    return balances;
+  }, [transactions, accounts]);
   const [startDate, setStartDate] = useState<Date | undefined>(initialDate);
   const [endDate, setEndDate] = useState<Date | undefined>(initialDate);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -67,7 +115,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
       Boolean(search.trim()) ||
       categoryFilter !== 'all' ||
       typeFilter !== 'all' ||
-      period !== 'this-month' ||
+      period !== 'all' ||
       Boolean(startDate) ||
       Boolean(endDate),
     [search, categoryFilter, typeFilter, period, startDate, endDate]
@@ -77,7 +125,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
     setSearch('');
     setCategoryFilter('all');
     setTypeFilter('all');
-    setPeriod('this-month');
+    setPeriod('all');
     setStartDate(undefined);
     setEndDate(undefined);
     setCurrentPage(1);
@@ -221,7 +269,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
           startDate={startDate} endDate={endDate}
           onStartDateChange={(d) => { setStartDate(d); setPeriod('custom'); }}
           onEndDateChange={(d) => { setEndDate(d); setPeriod('custom'); }}
-          onClear={() => { setPeriod('this-month'); setStartDate(undefined); setEndDate(undefined); onDateClear?.(); }}
+          onClear={() => { setPeriod('all'); setStartDate(undefined); setEndDate(undefined); onDateClear?.(); }}
         />
       </div>
 
@@ -272,9 +320,16 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
                       </div>
                     </div>
                     <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                      <span className={cn('text-sm font-bold tabular-nums text-right', transaction.type === 'income' ? 'text-emerald-500' : 'text-destructive')}>
-                        {transaction.type === 'income' ? '+' : '-'}{formatCurrency(Number(transaction.amount), transaction.account?.currency)}
-                      </span>
+                      <div className="flex flex-col items-end">
+                        <span className={cn('text-sm font-bold tabular-nums text-right', transaction.type === 'income' ? 'text-emerald-500' : 'text-destructive')}>
+                          {transaction.type === 'income' ? '+' : '-'}{formatCurrency(Number(transaction.amount), transaction.account?.currency)}
+                        </span>
+                        {runningBalances[transaction.id] !== undefined && (
+                          <span className="text-xs text-muted-foreground font-normal tabular-nums mt-0.5">
+                            Bal: {formatCurrency(runningBalances[transaction.id], transaction.account?.currency)}
+                          </span>
+                        )}
+                      </div>
                       <Button variant="ghost" size="icon" className="h-8 w-8 opacity-100 sm:opacity-0 sm:group-hover:opacity-100" onClick={(e) => { e.stopPropagation(); setDeleteId(transaction.id); }}>
                         <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
                       </Button>
