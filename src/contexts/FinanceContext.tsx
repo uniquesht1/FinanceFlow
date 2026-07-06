@@ -355,11 +355,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         transaction.amount !== undefined ||
         transaction.type !== undefined ||
         transaction.account_id !== undefined ||
-        transaction.category_id !== undefined ||
-        transaction.date !== undefined;
+        transaction.category_id !== undefined;
 
       if (attemptsImmutableUpdate) {
-        handleError(new Error('Transfer core fields are immutable. Delete and recreate the transfer to change amount/date/accounts.'), 'updating transfer');
+        handleError(new Error('Transfer core fields (amount/accounts) are immutable. Delete and recreate the transfer to change them.'), 'updating transfer');
         return;
       }
     }
@@ -386,12 +385,30 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (transaction.note !== undefined) updates.note = sanitizeText(transaction.note);
     if (transaction.title !== undefined) updates.title = sanitizeText(transaction.title);
 
+    const idsToUpdate = [id];
+    if (existing.is_transfer) {
+      const counterpart = transactions.find(
+        (t) =>
+          t.id !== id &&
+          t.is_transfer &&
+          t.user_id === existing.user_id &&
+          t.date === existing.date &&
+          Number(t.amount) === Number(existing.amount) &&
+          t.title === existing.title &&
+          t.note === existing.note &&
+          t.type !== existing.type
+      );
+      if (counterpart) {
+        idsToUpdate.push(counterpart.id);
+      }
+    }
+
     const { error } = await supabase
       .from('transactions')
       .update(updates)
-      .eq('id', id);
+      .in('id', idsToUpdate);
     if (error) return handleError(error, 'updating transaction');
-    handleSuccess('Transaction updated successfully');
+    handleSuccess(existing.is_transfer ? 'Transfer updated successfully' : 'Transaction updated successfully');
     await fetchData();
   };
 
