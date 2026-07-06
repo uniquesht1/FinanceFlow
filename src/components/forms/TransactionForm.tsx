@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select';
 import type { TransactionType } from '@/types';
 import { useToast } from '@/hooks/use-toast';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
 
 interface InitialValues {
   type?: 'income' | 'expense';
@@ -56,7 +57,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   initialValues,
   onSuccess
 }) => {
-  const { accounts, categories, addTransaction, updateTransaction, addTransfer } = useFinance();
+  const { accounts, categories, addTransaction, updateTransaction, addTransfer, selectedAccountId } = useFinance();
   const { formatDateTimeLocalValue, parseDateTimeLocalValue } = useTimezone();
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -69,7 +70,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   const [formData, setFormData] = useState<TransactionFormState>({
     type: (transaction?.type as TransactionFormType) || 'expense',
-    account_id: transaction?.account_id || '',
+    account_id: transaction?.account_id || selectedAccountId || accounts[0]?.id || '',
     to_account_id: '',
     category_id: transaction?.category_id || '',
     amount: transaction?.amount?.toString() || '',
@@ -85,7 +86,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       const defaultDateTime = formatDateTimeLocalValue(new Date());
       setFormData({
         type: initialValues?.type || transaction?.type || 'expense',
-        account_id: transaction?.account_id || accounts[0]?.id || '',
+        account_id: transaction?.account_id || selectedAccountId || accounts[0]?.id || '',
         to_account_id: '',
         category_id: transaction?.category_id || '',
         amount: initialValues?.amount || transaction?.amount?.toString() || '',
@@ -96,7 +97,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     }
 
     wasOpenRef.current = open;
-  }, [open, transaction, accounts, initialValues, formatDateTimeLocalValue]);
+  }, [open, transaction, accounts, initialValues, formatDateTimeLocalValue, selectedAccountId]);
 
   const isTransfer = formData.type === 'transfer' || transaction?.is_transfer;
   const filteredCategories = categories.filter((c) => c.type === (isTransfer ? 'expense' : formData.type));
@@ -285,18 +286,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
           <div className="space-y-2">
             <Label>Date & Time</Label>
-            <div className="flex gap-2">
-              <Input
-                type="datetime-local"
-                value={formData.date}
-                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                required
-                className="flex-1"
-              />
-              <Button type="button" variant="outline" size="sm" onClick={setNow}>
-                Now
-              </Button>
-            </div>
+            <DateTimePicker
+              date={new Date(parseDateTimeLocalValue(formData.date))}
+              onChange={(newDate) => setFormData({ ...formData, date: formatDateTimeLocalValue(newDate) })}
+            />
           </div>
 
           <div className="space-y-2">
