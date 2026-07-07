@@ -24,12 +24,31 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type Period = 'this-month' | 'this-year' | 'all';
+type Period = 'this-month' | 'this-year' | 'all' | 'custom';
+
+const monthsList = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
 
 const Dashboard: React.FC = () => {
   const { accounts, transactions, selectedAccountId, selectedCurrency, loading, hideMoney, toggleHideMoney } = useFinance();
   const [showTransactionForm, setShowTransactionForm] = React.useState(false);
   const [period, setPeriod] = React.useState<Period>('this-month');
+  const [customType, setCustomType] = React.useState<'month' | 'year'>('month');
+  const [customMonth, setCustomMonth] = React.useState<number>(new Date().getMonth());
+  const [customYear, setCustomYear] = React.useState<number>(new Date().getFullYear());
+
+  const availableYears = useMemo(() => {
+    const years = new Set<number>();
+    const currentYear = new Date().getFullYear();
+    transactions.forEach(t => {
+      const year = new Date(t.date).getFullYear();
+      years.add(year);
+    });
+    years.add(currentYear);
+    return Array.from(years).sort((a, b) => b - a);
+  }, [transactions]);
 
   // 1. Data Calculation Logic
   const { totalBalance, periodIncome, periodExpenses, periodTransactions, currency } = useMemo(() => {
@@ -51,6 +70,17 @@ const Dashboard: React.FC = () => {
       switch (period) {
         case 'this-month': return isWithinInterval(txDate, { start: startOfMonth(now), end: endOfMonth(now) });
         case 'this-year': return isWithinInterval(txDate, { start: startOfYear(now), end: endOfYear(now) });
+        case 'custom': {
+          if (customType === 'month') {
+            const start = startOfMonth(new Date(customYear, customMonth, 1));
+            const end = endOfMonth(new Date(customYear, customMonth, 1));
+            return isWithinInterval(txDate, { start, end });
+          } else {
+            const start = startOfYear(new Date(customYear, 0, 1));
+            const end = endOfYear(new Date(customYear, 0, 1));
+            return isWithinInterval(txDate, { start, end });
+          }
+        }
         default: return true;
       }
     });
@@ -73,7 +103,7 @@ const Dashboard: React.FC = () => {
       periodTransactions: filteredTxs,
       currency: accountCurrency
     };
-  }, [accounts, transactions, selectedAccountId, selectedCurrency, period]);
+  }, [accounts, transactions, selectedAccountId, selectedCurrency, period, customType, customMonth, customYear]);
 
   const netCashFlow = periodIncome - periodExpenses;
   const nonTransferPeriodTransactions = useMemo(
@@ -99,9 +129,17 @@ const Dashboard: React.FC = () => {
     switch (period) {
       case 'this-month': return format(now, 'MMMM yyyy');
       case 'this-year': return format(now, 'yyyy');
+      case 'custom': {
+        if (customType === 'month') {
+          const d = new Date(customYear, customMonth, 1);
+          return format(d, 'MMMM yyyy');
+        } else {
+          return `${customYear}`;
+        }
+      }
       default: return 'All Time';
     }
-  }, [period]);
+  }, [period, customType, customMonth, customYear]);
 
   const subtitleLabel = useMemo(() => {
     const accountLabel = selectedAccountId
@@ -147,7 +185,7 @@ const Dashboard: React.FC = () => {
                 <AccountFilter />
                 <CurrencyFilter />
               </div>
-              <div className="flex items-center gap-2 bg-card border border-border/50 p-1 rounded-lg">
+              <div className="flex flex-wrap items-center gap-2 bg-card border border-border/50 p-1 rounded-lg">
                 <span className="text-xs text-muted-foreground pl-2 font-medium">Period</span>
                 <Select value={period} onValueChange={(v) => setPeriod(v as Period)}>
                   <SelectTrigger className="w-[130px] h-8 border-none focus:ring-0">
@@ -157,8 +195,52 @@ const Dashboard: React.FC = () => {
                     <SelectItem value="this-month">This Month</SelectItem>
                     <SelectItem value="this-year">This Year</SelectItem>
                     <SelectItem value="all">All Time</SelectItem>
+                    <SelectItem value="custom">Custom Period</SelectItem>
                   </SelectContent>
                 </Select>
+
+                {period === 'custom' && (
+                  <>
+                    <div className="h-4 w-px bg-border/60 mx-1" />
+                    <Select value={customType} onValueChange={(v) => setCustomType(v as 'month' | 'year')}>
+                      <SelectTrigger className="w-[90px] h-8 border-none focus:ring-0 bg-transparent">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="month">Month</SelectItem>
+                        <SelectItem value="year">Year</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    {customType === 'month' && (
+                      <Select value={customMonth.toString()} onValueChange={(v) => setCustomMonth(parseInt(v))}>
+                        <SelectTrigger className="w-[110px] h-8 border-none focus:ring-0 bg-transparent">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {monthsList.map((m, idx) => (
+                            <SelectItem key={idx} value={idx.toString()}>
+                              {m}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+
+                    <Select value={customYear.toString()} onValueChange={(v) => setCustomYear(parseInt(v))}>
+                      <SelectTrigger className="w-[90px] h-8 border-none focus:ring-0 bg-transparent">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableYears.map((yr) => (
+                          <SelectItem key={yr} value={yr.toString()}>
+                            {yr}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </>
+                )}
               </div>
             </div>
           )}
