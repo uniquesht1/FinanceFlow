@@ -12,7 +12,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { useFinance } from '@/contexts/FinanceContext';
 import { format, startOfYear, endOfYear, eachMonthOfInterval, isWithinInterval, startOfMonth, endOfMonth } from 'date-fns';
 import { BarChart3, ChevronLeft, ChevronRight } from 'lucide-react';
-import { formatCurrency } from '@/lib/utils';
+import { cn, formatCurrency } from '@/lib/utils';
 import { Transaction } from '@/types';
 
 // Define props to receive filtered transactions from Dashboard
@@ -25,6 +25,7 @@ export const ExpenseChart: React.FC<ExpenseChartProps> = ({ transactions }) => {
   const currency = selectedCurrency || 'USD';
   const currentYear = new Date().getFullYear();
   const [selectedYear, setSelectedYear] = useState(currentYear);
+  const [activeTab, setActiveTab] = useState<'chart' | 'table'>('chart');
 
   // Get available years for the selector based on passed transactions
   const availableYears = useMemo(() => {
@@ -89,84 +90,151 @@ export const ExpenseChart: React.FC<ExpenseChartProps> = ({ transactions }) => {
   return (
     <Card className="border-border/50">
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <CardTitle className="text-lg font-semibold flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-primary" />
             Income vs Expenses
           </CardTitle>
-          <Select
-            value={selectedYear.toString()}
-            onValueChange={(value) => setSelectedYear(parseInt(value))}
-          >
-            <SelectTrigger className="w-[100px] h-8">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {availableYears.map((year) => (
-                <SelectItem key={year} value={year.toString()}>
-                  {year}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex items-center gap-2">
+            <div className="inline-flex rounded-lg border border-border bg-muted/40 p-0.5">
+              <button
+                type="button"
+                onClick={() => setActiveTab('chart')}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-xs font-medium transition-all",
+                  activeTab === 'chart'
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Chart
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('table')}
+                className={cn(
+                  "rounded-md px-2.5 py-1 text-xs font-medium transition-all",
+                  activeTab === 'table'
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Table
+              </button>
+            </div>
+            <Select
+              value={selectedYear.toString()}
+              onValueChange={(value) => setSelectedYear(parseInt(value))}
+            >
+              <SelectTrigger className="w-[100px] h-8">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {availableYears.map((year) => (
+                  <SelectItem key={year} value={year.toString()}>
+                    {year}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </CardHeader>
       <CardContent>
-        <div className="relative h-[280px]">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8"
-            onClick={goToPreviousYear}
-            disabled={selectedYear <= minYear}
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
+        {activeTab === 'chart' ? (
+          <div className="relative h-[280px]">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8"
+              onClick={goToPreviousYear}
+              disabled={selectedYear <= minYear}
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
 
-          <div className="h-full px-10">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                <XAxis
-                  dataKey="month"
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                  axisLine={{ stroke: 'hsl(var(--border))' }}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
-                  axisLine={false}
-                  tickLine={false}
-                  tickFormatter={compactTick}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--card))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: '8px',
-                  }}
-                  formatter={(value: number) => [formatCurrency(value, currency), '']}
-                />
-                <Legend
-                  wrapperStyle={{ paddingTop: '16px' }}
-                  formatter={(value) => <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>}
-                />
-                <Bar dataKey="income" fill="hsl(var(--success, 142 71% 45%))" name="Income" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expenses" fill="hsl(var(--destructive))" name="Expenses" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+            <div className="h-full px-10">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                  <XAxis
+                    dataKey="month"
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    axisLine={{ stroke: 'hsl(var(--border))' }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={compactTick}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: 'hsl(var(--card))',
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px',
+                    }}
+                    formatter={(value: number) => [formatCurrency(value, currency), '']}
+                  />
+                  <Legend
+                    wrapperStyle={{ paddingTop: '16px' }}
+                    formatter={(value) => <span style={{ color: 'hsl(var(--foreground))' }}>{value}</span>}
+                  />
+                  <Bar dataKey="income" fill="hsl(var(--success, 142 71% 45%))" name="Income" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="expenses" fill="hsl(var(--destructive))" name="Expenses" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8"
+              onClick={goToNextYear}
+              disabled={selectedYear >= maxYear}
+            >
+              <ChevronRight className="h-5 w-5" />
+            </Button>
           </div>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-8 w-8"
-            onClick={goToNextYear}
-            disabled={selectedYear >= maxYear}
-          >
-            <ChevronRight className="h-5 w-5" />
-          </Button>
-        </div>
+        ) : (
+          <div className="h-[280px] overflow-y-auto pr-1">
+            <div className="w-full overflow-x-auto">
+              <table className="w-full text-sm text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-border/60 text-xs text-muted-foreground uppercase tracking-wider">
+                    <th className="py-2 font-semibold">Month</th>
+                    <th className="py-2 text-right font-semibold">Income</th>
+                    <th className="py-2 text-right font-semibold">Expenses</th>
+                    <th className="py-2 text-right font-semibold">Net</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/30">
+                  {chartData.map((row) => {
+                    const net = row.income - row.expenses;
+                    return (
+                      <tr key={row.month} className="hover:bg-muted/30 transition-colors">
+                        <td className="py-2 font-medium">{row.month}</td>
+                        <td className="py-2 text-right text-emerald-500 font-medium tabular-nums">
+                          {row.income > 0 ? `+${formatCurrency(row.income, currency)}` : formatCurrency(row.income, currency)}
+                        </td>
+                        <td className="py-2 text-right text-destructive font-medium tabular-nums">
+                          {row.expenses > 0 ? `-${formatCurrency(row.expenses, currency)}` : formatCurrency(row.expenses, currency)}
+                        </td>
+                        <td className={cn(
+                          "py-2 text-right font-bold tabular-nums",
+                          net > 0 ? "text-emerald-500" : net < 0 ? "text-destructive" : "text-muted-foreground"
+                        )}>
+                          {net > 0 ? `+${formatCurrency(net, currency)}` : formatCurrency(net, currency)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

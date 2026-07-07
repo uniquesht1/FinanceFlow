@@ -65,12 +65,12 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
     // For each account, sort newest → oldest then walk backwards from current_balance
     accounts.forEach((acc) => {
       const accTxs = txByAccount[acc.id] || [];
-      
+
       // Sort newest first lexicographically (extremely robust against parse issues)
       const sorted = [...accTxs].sort((a, b) => {
         const dateCompare = b.date.localeCompare(a.date);
         if (dateCompare !== 0) return dateCompare;
-        
+
         const createdA = a.created_at || '';
         const createdB = b.created_at || '';
         return createdB.localeCompare(createdA);
@@ -101,6 +101,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
   const [selectedTransaction, setSelectedTransaction] = useState<Transaction | null>(null);
   const [pageSize, setPageSize] = useState<PageSizeOption>('20');
   const [currentPage, setCurrentPage] = useState(1);
+  const [groupBy, setGroupBy] = useState<'day' | 'category'>('day');
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -198,12 +199,17 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
   const groupedTransactions = useMemo(() => {
     const groups: Record<string, Transaction[]> = {};
     paginatedTransactions.forEach(t => {
-      const dateKey = format(parseISO(t.date), 'yyyy-MM-dd');
-      if (!groups[dateKey]) groups[dateKey] = [];
-      groups[dateKey].push(t);
+      let key = '';
+      if (groupBy === 'day') {
+        key = format(parseISO(t.date), 'yyyy-MM-dd');
+      } else {
+        key = t.is_transfer ? 'Transfer' : (t.category?.name || 'Uncategorized');
+      }
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(t);
     });
     return groups;
-  }, [paginatedTransactions]);
+  }, [paginatedTransactions, groupBy]);
 
   const pageStart = totalTransactions === 0 ? 0 : (pageSize === 'all' ? 1 : (currentPage - 1) * resolvedPageSize + 1);
   const pageEnd = totalTransactions === 0 ? 0 : (pageSize === 'all' ? totalTransactions : Math.min(currentPage * resolvedPageSize, totalTransactions));
@@ -221,6 +227,54 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
 
     return Array.from(pages).sort((a, b) => a - b);
   }, [currentPage, totalPages]);
+
+  const renderPaginationControls = () => {
+    if (totalPages <= 1) return null;
+    return (
+      <div className="flex items-center gap-1">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+          disabled={currentPage === 1}
+          aria-label="Previous page"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+
+        {visiblePages.map((page, idx) => {
+          const previous = visiblePages[idx - 1];
+          const shouldShowGap = previous !== undefined && page - previous > 1;
+
+          return (
+            <React.Fragment key={page}>
+              {shouldShowGap && <span className="px-1 text-xs text-muted-foreground select-none">...</span>}
+              <Button
+                variant={page === currentPage ? 'default' : 'outline'}
+                size="icon"
+                className="h-8 w-8 text-xs font-medium"
+                onClick={() => setCurrentPage(page)}
+              >
+                {page}
+              </Button>
+            </React.Fragment>
+          );
+        })}
+
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8"
+          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+          disabled={currentPage === totalPages}
+          aria-label="Next page"
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+  };
 
   const getDateHeader = (dateStr: string) => {
     const date = parseISO(dateStr);
@@ -271,39 +325,37 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
           onEndDateChange={(d) => { setEndDate(d); setPeriod('custom'); }}
           onClear={() => { setPeriod('all'); setStartDate(undefined); setEndDate(undefined); onDateClear?.(); }}
         />
+        <Select value={groupBy} onValueChange={(v: 'day' | 'category') => setGroupBy(v)}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Group by" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="day">Group by Day</SelectItem>
+            <SelectItem value="category">Group by Category</SelectItem>
+          </SelectContent>
+        </Select>
+        {hasActiveFilters && (
+          <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-muted-foreground hover:text-foreground h-9 px-3">
+            Clear all filters
+          </Button>
+        )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border/50 bg-card px-3 py-2">
-        <p className="text-sm text-muted-foreground">
-          Showing <span className="font-medium text-foreground">{pageStart}-{pageEnd}</span> of <span className="font-medium text-foreground">{filteredTransactions.length}</span> transaction{filteredTransactions.length !== 1 ? 's' : ''}
-        </p>
-        <div className="flex items-center gap-2">
-          <Select value={pageSize} onValueChange={(value) => setPageSize(value as PageSizeOption)}>
-            <SelectTrigger className="w-[140px] h-8">
-              <SelectValue placeholder="Page size" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="20">Show 20</SelectItem>
-              <SelectItem value="50">Show 50</SelectItem>
-              <SelectItem value="100">Show 100</SelectItem>
-              <SelectItem value="all">Show All</SelectItem>
-            </SelectContent>
-          </Select>
-          {hasActiveFilters && (
-            <Button variant="ghost" size="sm" onClick={clearAllFilters}>
-              Clear all filters
-            </Button>
-          )}
+      {filteredTransactions.length > 0 && totalPages > 1 && (
+        <div className="flex justify-end -mb-2">
+          {renderPaginationControls()}
         </div>
-      </div>
+      )}
 
       <div className="space-y-6">
         {Object.keys(groupedTransactions).length === 0 ? (
           <EmptyState icon={<Search className="h-8 w-8" />} title="No matches found" description={hasActiveFilters ? 'Try removing one or more filters.' : 'Your transactions will appear here once you add them.'} />
         ) : (
-          Object.entries(groupedTransactions).map(([dateStr, txs]) => (
-            <div key={dateStr} className="space-y-2">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider pl-1">{getDateHeader(dateStr)}</h3>
+          Object.entries(groupedTransactions).map(([groupKey, txs]) => (
+            <div key={groupKey} className="space-y-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider pl-1">
+                {groupBy === 'day' ? getDateHeader(groupKey) : groupKey}
+              </h3>
               <div className="space-y-1">
                 {txs.map((transaction) => (
                   <div key={transaction.id} onClick={() => setSelectedTransaction(transaction)} className="group flex items-center justify-between p-3 bg-card border border-border/50 rounded-xl hover:border-primary/40 transition-all cursor-pointer">
@@ -342,46 +394,30 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
         )}
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            disabled={currentPage === 1}
-          >
-            <ChevronLeft className="h-4 w-4" />
-            Prev
-          </Button>
+      {filteredTransactions.length > 0 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-border/60 pt-4 mt-6">
+          <p className="text-sm text-muted-foreground text-center sm:text-left order-2 sm:order-1">
+            Showing <span className="font-medium text-foreground">{pageStart}–{pageEnd}</span> of <span className="font-medium text-foreground">{filteredTransactions.length}</span> transaction{filteredTransactions.length !== 1 ? 's' : ''}
+          </p>
 
-          {visiblePages.map((page, idx) => {
-            const previous = visiblePages[idx - 1];
-            const shouldShowGap = previous !== undefined && page - previous > 1;
+          <div className="flex flex-wrap items-center justify-center gap-3.5 order-1 sm:order-2 w-full sm:w-auto">
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">Rows per page:</span>
+              <Select value={pageSize} onValueChange={(value) => setPageSize(value as PageSizeOption)}>
+                <SelectTrigger className="w-[85px] h-8 text-xs bg-background">
+                  <SelectValue placeholder="Page size" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="20">20</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                  <SelectItem value="100">100</SelectItem>
+                  <SelectItem value="all">All</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-            return (
-              <React.Fragment key={page}>
-                {shouldShowGap && <span className="px-1 text-sm text-muted-foreground">...</span>}
-                <Button
-                  variant={page === currentPage ? 'default' : 'outline'}
-                  size="sm"
-                  className="min-w-9"
-                  onClick={() => setCurrentPage(page)}
-                >
-                  {page}
-                </Button>
-              </React.Fragment>
-            );
-          })}
-
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            disabled={currentPage === totalPages}
-          >
-            Next
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+            {renderPaginationControls()}
+          </div>
         </div>
       )}
 
