@@ -46,7 +46,7 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
   open,
   onOpenChange,
 }) => {
-  const { accounts, categories, updateTransaction } = useFinance();
+  const { accounts, categories, transactions, updateTransaction, updateTransfer } = useFinance();
   const { formatDateInTimezone, formatDateTimeLocalValue, parseDateTimeLocalValue } = useTimezone();
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
@@ -55,31 +55,70 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
     type: 'expense' as 'income' | 'expense',
     category_id: '',
     account_id: '',
+    from_account_id: '',
+    to_account_id: '',
     date: new Date(),
     note: '',
     title: '',
   });
 
+  const counterpart = React.useMemo(() => {
+    if (!transaction || !transaction.is_transfer) return null;
+    const candidates = transactions.filter(
+      (t) =>
+        t.id !== transaction.id &&
+        t.is_transfer &&
+        t.user_id === transaction.user_id &&
+        Number(t.amount) === Number(transaction.amount) &&
+        t.type !== transaction.type
+    );
+    let bestMatch: Transaction | null = null;
+    let minDiff = Infinity;
+    const txTime = new Date(transaction.date).getTime();
+    for (const t of candidates) {
+      const diff = Math.abs(new Date(t.date).getTime() - txTime);
+      if (diff < minDiff && diff < 1000 * 60 * 60 * 24) {
+        minDiff = diff;
+        bestMatch = t;
+      }
+    }
+    return bestMatch;
+  }, [transaction, transactions]);
+
   useEffect(() => {
     if (transaction) {
+      let fromAccountId = '';
+      let toAccountId = '';
+      if (transaction.is_transfer) {
+        if (transaction.type === 'expense') {
+          fromAccountId = transaction.account_id;
+          toAccountId = counterpart ? counterpart.account_id : '';
+        } else {
+          fromAccountId = counterpart ? counterpart.account_id : '';
+          toAccountId = transaction.account_id;
+        }
+      }
+
       setEditData({
         amount: String(transaction.amount),
         type: transaction.type as 'income' | 'expense',
         category_id: transaction.category_id || '',
         account_id: transaction.account_id,
+        from_account_id: fromAccountId,
+        to_account_id: toAccountId,
         date: new Date(transaction.date),
         note: transaction.note || '',
         title: transaction.title || '',
       });
       setIsEditing(false);
     }
-  }, [transaction]);
+  }, [transaction, counterpart]);
 
   if (!transaction) return null;
 
   const handleSave = async () => {
     const amount = Number(editData.amount);
-    if (!transaction.is_transfer && (!Number.isFinite(amount) || amount <= 0)) {
+    if (!Number.isFinite(amount) || amount <= 0) {
       toast({
         title: 'Invalid amount',
         description: 'Amount must be greater than 0.',
@@ -88,45 +127,90 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
       return;
     }
 
-    if (!editData.account_id) {
-      toast({
-        title: 'Missing account',
-        description: 'Please select an account.',
-        variant: 'destructive',
+    if (transaction.is_transfer) {
+      if (!editData.from_account_id || !editData.to_account_id) {
+        toast({
+          title: 'Missing accounts',
+          description: 'Please select both source and destination accounts.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (editData.from_account_id === editData.to_account_id) {
+        toast({
+          title: 'Invalid accounts',
+          description: 'Source and destination accounts must be different.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      const expenseLegId = transaction.type === 'expense' ? transaction.id : counterpart?.id;
+      const incomeLegId = transaction.type === 'income' ? transaction.id : counterpart?.id;
+
+      if (!expenseLegId || !incomeLegId) {
+        toast({
+          title: 'Error updating transfer',
+          description: 'Could not find the counterpart transaction.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      await updateTransfer(expenseLegId, incomeLegId, {
+        fromAccountId: editData.from_account_id,
+        toAccountId: editData.to_account_id,
+        amount,
+        title: editData.title || undefined,
+        note: editData.note || undefined,
+        date: editData.date.toISOString(),
       });
-      return;
+    } else {
+      if (!editData.account_id) {
+        toast({
+          title: 'Missing account',
+          description: 'Please select an account.',
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      await updateTransaction(transaction.id, {
+        amount,
+        type: editData.type,
+        category_id: editData.category_id || null,
+        account_id: editData.account_id,
+        date: editData.date.toISOString(),
+        note: editData.note || null,
+        title: editData.title || null,
+      });
     }
 
-    const payload: Partial<Transaction> = transaction.is_transfer
-      ? {
-          date: editData.date.toISOString(),
-          note: editData.note || null,
-          title: editData.title || null,
-        }
-      : {
-          amount,
-          type: editData.type,
-          category_id: editData.category_id || null,
-          account_id: editData.account_id,
-          date: editData.date.toISOString(),
-          note: editData.note || null,
-          title: editData.title || null,
-        };
-
-    await updateTransaction(transaction.id, {
-      ...payload,
-    });
     setIsEditing(false);
     onOpenChange(false);
   };
 
   const handleCancel = () => {
     if (transaction) {
+      let fromAccountId = '';
+      let toAccountId = '';
+      if (transaction.is_transfer) {
+        if (transaction.type === 'expense') {
+          fromAccountId = transaction.account_id;
+          toAccountId = counterpart ? counterpart.account_id : '';
+        } else {
+          fromAccountId = counterpart ? counterpart.account_id : '';
+          toAccountId = transaction.account_id;
+        }
+      }
+
       setEditData({
         amount: String(transaction.amount),
         type: transaction.type as 'income' | 'expense',
         category_id: transaction.category_id || '',
         account_id: transaction.account_id,
+        from_account_id: fromAccountId,
+        to_account_id: toAccountId,
         date: new Date(transaction.date),
         note: transaction.note || '',
         title: transaction.title || '',
@@ -163,7 +247,7 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
               <ArrowDownRight className="h-5 w-5 text-destructive" />
             )}
           </div>
-          {isEditing && !transaction.is_transfer ? (
+          {isEditing ? (
             <Input
               type="number"
               value={editData.amount}
@@ -235,29 +319,82 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
             </div>
           )}
 
-          {/* Account */}
-          <div className="flex items-center justify-between py-2">
-            <span className="text-sm text-muted-foreground">Account</span>
-            {isEditing && !transaction.is_transfer ? (
-              <Select
-                value={editData.account_id}
-                onValueChange={(value) => setEditData({ ...editData, account_id: value })}
-              >
-                <SelectTrigger className="w-32 h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {accounts.map((acc) => (
-                    <SelectItem key={acc.id} value={acc.id}>
-                      {acc.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <span className="text-sm font-medium">{transaction.account?.name || 'Unknown'}</span>
-            )}
-          </div>
+          {/* Account/From-To Accounts */}
+          {transaction.is_transfer ? (
+            <>
+              <div className="flex items-center justify-between py-2">
+                <span className="text-sm text-muted-foreground">From Account</span>
+                {isEditing ? (
+                  <Select
+                    value={editData.from_account_id}
+                    onValueChange={(value) => setEditData({ ...editData, from_account_id: value })}
+                  >
+                    <SelectTrigger className="w-44 h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {accounts.map((acc) => (
+                        <SelectItem key={acc.id} value={acc.id}>
+                          {acc.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className="text-sm font-medium">
+                    {transaction.type === 'expense' ? transaction.account?.name : counterpart?.account?.name || 'Unknown'}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center justify-between py-2">
+                <span className="text-sm text-muted-foreground">To Account</span>
+                {isEditing ? (
+                  <Select
+                    value={editData.to_account_id}
+                    onValueChange={(value) => setEditData({ ...editData, to_account_id: value })}
+                  >
+                    <SelectTrigger className="w-44 h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {accounts.map((acc) => (
+                        <SelectItem key={acc.id} value={acc.id}>
+                          {acc.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <span className="text-sm font-medium">
+                    {transaction.type === 'income' ? transaction.account?.name : counterpart?.account?.name || 'Unknown'}
+                  </span>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-between py-2">
+              <span className="text-sm text-muted-foreground">Account</span>
+              {isEditing ? (
+                <Select
+                  value={editData.account_id}
+                  onValueChange={(value) => setEditData({ ...editData, account_id: value })}
+                >
+                  <SelectTrigger className="w-32 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accounts.map((acc) => (
+                      <SelectItem key={acc.id} value={acc.id}>
+                        {acc.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <span className="text-sm font-medium">{transaction.account?.name || 'Unknown'}</span>
+              )}
+            </div>
+          )}
 
           {/* Category */}
           <div className="flex items-center justify-between py-2">
@@ -317,7 +454,7 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
                 Cancel
               </Button>
               <Button className="flex-1" onClick={handleSave}>
-                {transaction.is_transfer ? 'Save Note' : 'Save'}
+                Save
               </Button>
             </div>
           ) : (
