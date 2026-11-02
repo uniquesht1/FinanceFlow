@@ -47,7 +47,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [period, setPeriod] = useState<QuickPeriod>(initialDate ? 'custom' : 'all');
+  const [period, setPeriod] = useState<QuickPeriod>(initialDate ? 'custom' : 'this-month');
 
   // Compute running balance for each transaction anchored to current_balance (DB ground truth).
   // We work BACKWARDS from the most recent transaction so the latest tx always shows the
@@ -132,6 +132,8 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
     setCurrentPage(1);
     onDateClear?.();
   };
+
+
 
   const filteredTransactions = useMemo(() => {
     const now = new Date();

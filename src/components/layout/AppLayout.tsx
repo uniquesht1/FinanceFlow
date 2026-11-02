@@ -14,13 +14,15 @@ import {
   X,
   ListTodo,
   Target,
-  Repeat
+  Repeat,
+  BarChart2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
   { path: '/transactions', label: 'Transactions', icon: ArrowRightLeft },
+  { path: '/analytics', label: 'Analytics', icon: BarChart2 },
   { path: '/accounts', label: 'Accounts', icon: Wallet },
   { path: '/categories', label: 'Categories', icon: Tags },
   { path: '/budgets', label: 'Budgets', icon: Target },

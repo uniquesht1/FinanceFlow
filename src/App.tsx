@@ -10,15 +10,16 @@ import { FinanceProvider } from "./contexts/FinanceContext";
 import { TimezoneProvider } from "./contexts/TimezoneContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import Dashboard from "./pages/Dashboard";
-import Transactions from "./pages/Transactions";
-import Accounts from "./pages/Accounts";
-import Categories from "./pages/Categories";
-import Settings from "./pages/Settings";
-import Budgeting from "./pages/Budgeting";
-import Budgets from "./pages/Budgets";
-import RecurringTransactions from "./pages/RecurringTransactions";
 
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Transactions = lazy(() => import("./pages/Transactions"));
+const Analytics = lazy(() => import("./pages/Analytics"));
+const Accounts = lazy(() => import("./pages/Accounts"));
+const Categories = lazy(() => import("./pages/Categories"));
+const Budgets = lazy(() => import("./pages/Budgets"));
+const Budgeting = lazy(() => import("./pages/Budgeting"));
+const RecurringTransactions = lazy(() => import("./pages/RecurringTransactions"));
+const Settings = lazy(() => import("./pages/Settings"));
 const Auth = lazy(() => import("./pages/Auth"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
 const NotFound = lazy(() => import("./pages/NotFound"));
@@ -55,6 +56,7 @@ const App = () => (
                       <Route path="/tracker" element={<ProtectedRoute><Budgeting /></ProtectedRoute>} />
                       <Route path="/budgeting" element={<ProtectedRoute><Budgeting /></ProtectedRoute>} />
                       <Route path="/recurring" element={<ProtectedRoute><RecurringTransactions /></ProtectedRoute>} />
+                      <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </Suspense>
