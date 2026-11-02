@@ -18,6 +18,7 @@ import Settings from "./pages/Settings";
 import Budgeting from "./pages/Budgeting";
 import Budgets from "./pages/Budgets";
 import RecurringTransactions from "./pages/RecurringTransactions";
+import Analytics from "./pages/Analytics";
 
 const Auth = lazy(() => import("./pages/Auth"));
 const ResetPassword = lazy(() => import("./pages/ResetPassword"));
@@ -55,6 +56,7 @@ const App = () => (
                       <Route path="/tracker" element={<ProtectedRoute><Budgeting /></ProtectedRoute>} />
                       <Route path="/budgeting" element={<ProtectedRoute><Budgeting /></ProtectedRoute>} />
                       <Route path="/recurring" element={<ProtectedRoute><RecurringTransactions /></ProtectedRoute>} />
+                      <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
                       <Route path="*" element={<NotFound />} />
                     </Routes>
                   </Suspense>

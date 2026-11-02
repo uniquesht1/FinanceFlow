@@ -22,6 +22,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { DateTimePicker } from '@/components/ui/date-time-picker';
 import {
   ArrowUpRight,
   ArrowDownRight,
@@ -98,18 +99,19 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
 
     const payload: Partial<Transaction> = transaction.is_transfer
       ? {
-        note: editData.note || null,
-        title: editData.title || null,
-      }
+          date: editData.date.toISOString(),
+          note: editData.note || null,
+          title: editData.title || null,
+        }
       : {
-        amount,
-        type: editData.type,
-        category_id: editData.category_id || null,
-        account_id: editData.account_id,
-        date: editData.date.toISOString(),
-        note: editData.note || null,
-        title: editData.title || null,
-      };
+          amount,
+          type: editData.type,
+          category_id: editData.category_id || null,
+          account_id: editData.account_id,
+          date: editData.date.toISOString(),
+          note: editData.note || null,
+          title: editData.title || null,
+        };
 
     await updateTransaction(transaction.id, {
       ...payload,
@@ -222,16 +224,13 @@ export const TransactionDetailDialog: React.FC<TransactionDetailDialogProps> = (
           )}
 
           {/* Date & Time - only in edit mode */}
-          {isEditing && !transaction.is_transfer && (
+          {isEditing && (
             <div className="flex items-center justify-between py-2">
               <span className="text-sm text-muted-foreground">Date & Time</span>
-              <Input
-                type="datetime-local"
-                value={formatDateTimeLocalValue(editData.date)}
-                onChange={(e) =>
-                  setEditData({ ...editData, date: new Date(parseDateTimeLocalValue(e.target.value)) })
-                }
-                className="w-44 h-8"
+              <DateTimePicker
+                date={editData.date}
+                onChange={(newDate) => setEditData({ ...editData, date: newDate })}
+                className="w-44"
               />
             </div>
           )}

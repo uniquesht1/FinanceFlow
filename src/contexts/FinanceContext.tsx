@@ -184,31 +184,9 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (categoriesResult.error) throw categoriesResult.error;
         if (transactionsResult.error) throw transactionsResult.error;
 
-        const rawAccounts = accountsResult.data ?? [];
-        const rawTransactions = transactionsResult.data ?? [];
-
-        // Calculate correct current_balance dynamically on the client side
-        const calculatedAccounts = rawAccounts.map(account => {
-          const accountTransactions = rawTransactions.filter(t => t.account_id === account.id);
-          const balance = Number(account.starting_balance) + accountTransactions.reduce((sum, t) => {
-            const amount = Number(t.amount);
-            if (t.type === 'income') {
-              return sum + amount;
-            } else if (t.type === 'expense') {
-              return sum - amount;
-            }
-            return sum;
-          }, 0);
-
-          return {
-            ...account,
-            current_balance: Math.round(balance * 100) / 100
-          };
-        });
-
-        setAccounts(calculatedAccounts);
+        setAccounts(accountsResult.data ?? []);
         setCategories((categoriesResult.data ?? []) as Category[]);
-        setTransactions(rawTransactions as Transaction[]);
+        setTransactions((transactionsResult.data ?? []) as Transaction[]);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : 'Unknown error occurred';
         toast({ title: 'Error loading data', description: message, variant: 'destructive' });
@@ -377,11 +355,10 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
         transaction.amount !== undefined ||
         transaction.type !== undefined ||
         transaction.account_id !== undefined ||
-        transaction.category_id !== undefined ||
-        transaction.date !== undefined;
+        transaction.category_id !== undefined;
 
       if (attemptsImmutableUpdate) {
-        handleError(new Error('Transfer core fields are immutable. Delete and recreate the transfer to change amount/date/accounts.'), 'updating transfer');
+        handleError(new Error('Transfer core fields (amount/accounts) are immutable. Delete and recreate the transfer to change them.'), 'updating transfer');
         return;
       }
     }
@@ -408,12 +385,30 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     if (transaction.note !== undefined) updates.note = sanitizeText(transaction.note);
     if (transaction.title !== undefined) updates.title = sanitizeText(transaction.title);
 
+    const idsToUpdate = [id];
+    if (existing.is_transfer) {
+      const counterpart = transactions.find(
+        (t) =>
+          t.id !== id &&
+          t.is_transfer &&
+          t.user_id === existing.user_id &&
+          t.date === existing.date &&
+          Number(t.amount) === Number(existing.amount) &&
+          t.title === existing.title &&
+          t.note === existing.note &&
+          t.type !== existing.type
+      );
+      if (counterpart) {
+        idsToUpdate.push(counterpart.id);
+      }
+    }
+
     const { error } = await supabase
       .from('transactions')
       .update(updates)
-      .eq('id', id);
+      .in('id', idsToUpdate);
     if (error) return handleError(error, 'updating transaction');
-    handleSuccess('Transaction updated successfully');
+    handleSuccess(existing.is_transfer ? 'Transfer updated successfully' : 'Transaction updated successfully');
     await fetchData();
   };
 
