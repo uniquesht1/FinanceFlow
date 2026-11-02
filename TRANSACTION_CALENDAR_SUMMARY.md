@@ -7,10 +7,15 @@ This document outlines all architectural changes, bug fixes, feature additions, 
 
 ## 🛠️ 1. Analytics Diagnosis & Bug Fixes
 
-### A. Initial Date Filter Desynchronization
-* **File:** `src/pages/Analytics.tsx`
-* **Problem:** `period` was set by default to `'this-month'`, but state variables `startDate` and `endDate` were initialized as `undefined`. The filter memo returned `true` for all transactions when both dates were undefined (`if (!startDate && !endDate) return true;`), causing all lifetime transactions to display on initial mount instead of only this month's transactions.
-* **Resolution:** Initialized `startDate` to `startOfMonth(new Date())` and `endDate` to `endOfMonth(new Date())`. Created a dedicated `accountTransactions` memo to prevent date filtering from clipping out other months when users navigate months inside the Transaction Calendar.
+### A. Initial Date Filter Desynchronization & Default Period Alignment
+* **Files:** `src/pages/Analytics.tsx`, `src/components/TransactionList.tsx`
+* **Problem:** 
+  1. In `Analytics.tsx`, `period` was set by default to `'this-month'`, but state variables `startDate` and `endDate` were initialized as `undefined`. Furthermore, the "Reset Filter" button checked `(startDate || endDate || period !== 'all')`, causing "Reset Filter" to show by default and reset to "All Time" rather than the expected default "This Month".
+  2. In `TransactionList.tsx`, `period` was defaulting to `'all'` rather than `'this-month'`.
+* **Resolution:** 
+  1. Defaulted both `Analytics.tsx` and `TransactionList.tsx` to `'this-month'`.
+  2. In `Analytics.tsx`, "Reset Filter" now only appears when `period !== 'this-month'`, and clicking it resets to `'this-month'`. Clearing the date picker also cleanly returns to `'this-month'`.
+  3. In `TransactionList.tsx`, filter reset and date clear buttons return to `'this-month'`.
 
 ### B. Safe Date Range Calculation for Cash Flow Trends
 * **File:** `src/components/transactions/CashFlowBarChart.tsx`
@@ -81,3 +86,4 @@ This document outlines all architectural changes, bug fixes, feature additions, 
 * **Branch:** `feat/analytics`
 * **Commit:** `bb2344c`
 * **Message:** `feat(analytics): add detailed Transaction Calendar and resolve analytics date filtering`
+

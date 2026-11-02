@@ -108,14 +108,14 @@ const Analytics: React.FC = () => {
               endDate={endDate}
               onStartDateChange={(d) => { setStartDate(d); setPeriod('custom'); }}
               onEndDateChange={(d) => { setEndDate(d); setPeriod('custom'); }}
-              onClear={() => { setStartDate(undefined); setEndDate(undefined); setPeriod('all'); }}
+              onClear={() => handlePeriodChange('this-month')}
             />
 
-            {(startDate || endDate || period !== 'all') && (
+            {period !== 'this-month' && (
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => handlePeriodChange('all')}
+                onClick={() => handlePeriodChange('this-month')}
                 className="h-9 px-2.5 text-xs text-muted-foreground hover:text-foreground"
               >
                 Reset Filter

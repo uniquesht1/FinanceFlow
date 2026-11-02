@@ -47,7 +47,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [period, setPeriod] = useState<QuickPeriod>(initialDate ? 'custom' : 'all');
+  const [period, setPeriod] = useState<QuickPeriod>(initialDate ? 'custom' : 'this-month');
 
   // Compute running balance for each transaction anchored to current_balance (DB ground truth).
   // We work BACKWARDS from the most recent transaction so the latest tx always shows the
@@ -116,7 +116,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
       Boolean(search.trim()) ||
       categoryFilter !== 'all' ||
       typeFilter !== 'all' ||
-      period !== 'all' ||
+      period !== 'this-month' ||
       Boolean(startDate) ||
       Boolean(endDate),
     [search, categoryFilter, typeFilter, period, startDate, endDate]
@@ -126,7 +126,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
     setSearch('');
     setCategoryFilter('all');
     setTypeFilter('all');
-    setPeriod('all');
+    setPeriod('this-month');
     setStartDate(undefined);
     setEndDate(undefined);
     setCurrentPage(1);
@@ -325,7 +325,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ onEdit, initia
           startDate={startDate} endDate={endDate}
           onStartDateChange={(d) => { setStartDate(d); setPeriod('custom'); }}
           onEndDateChange={(d) => { setEndDate(d); setPeriod('custom'); }}
-          onClear={() => { setPeriod('all'); setStartDate(undefined); setEndDate(undefined); onDateClear?.(); }}
+          onClear={() => { setPeriod('this-month'); setStartDate(undefined); setEndDate(undefined); onDateClear?.(); }}
         />
         <Select value={groupBy} onValueChange={(v: 'day' | 'category') => setGroupBy(v)}>
           <SelectTrigger className="w-40">
