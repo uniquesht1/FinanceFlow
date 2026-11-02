@@ -76,8 +76,11 @@ This document outlines all architectural changes, bug fixes, feature additions, 
    * `npx tsc --noEmit` exited with code `0`.
 3. **Linting:**
    * `npm run lint` exited with `0` errors across all files.
-4. **Production Build:**
-   * `npm run build` compiled all 3,835 modules and generated production assets in `dist/` with exit code `0`.
+4. **Production Build & Bundle Optimization:**
+   * Configured route-level code splitting via `React.lazy()` in `src/App.tsx`.
+   * Added `build.rollupOptions.output.manualChunks` in `vite.config.ts` separating vendor libraries (`vendor-react`, `vendor-charts`, `vendor-ui`, `vendor-supabase`, `vendor-date`).
+   * Primary entry chunk reduced by **90%** from **1,219 kB** down to **122 kB**, completely resolving the 500 kB chunk size warning.
+   * `npm run build` compiled all modules cleanly in 12.04s.
 
 ---
 
