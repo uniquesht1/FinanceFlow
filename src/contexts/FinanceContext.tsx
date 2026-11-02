@@ -59,6 +59,18 @@ interface FinanceContextType {
   updateTransaction: (id: string, transaction: Partial<Transaction>) => Promise<void>;
   deleteTransaction: (id: string) => Promise<void>;
   addTransfer: (fromAccountId: string, toAccountId: string, amount: number, title?: string, note?: string, date?: string) => Promise<void>;
+  updateTransfer: (
+    fromTransactionId: string,
+    toTransactionId: string,
+    data: {
+      fromAccountId: string;
+      toAccountId: string;
+      amount: number;
+      title?: string;
+      note?: string;
+      date?: string;
+    }
+  ) => Promise<void>;
 }
 
 // ==========================================
@@ -387,17 +399,24 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const idsToUpdate = [id];
     if (existing.is_transfer) {
-      const counterpart = transactions.find(
+      const candidates = transactions.filter(
         (t) =>
           t.id !== id &&
           t.is_transfer &&
           t.user_id === existing.user_id &&
-          t.date === existing.date &&
           Number(t.amount) === Number(existing.amount) &&
-          t.title === existing.title &&
-          t.note === existing.note &&
           t.type !== existing.type
       );
+      let counterpart: Transaction | undefined = undefined;
+      let minDiff = Infinity;
+      const txTime = new Date(existing.date).getTime();
+      for (const t of candidates) {
+        const diff = Math.abs(new Date(t.date).getTime() - txTime);
+        if (diff < minDiff && diff < 1000 * 60 * 60 * 24) {
+          minDiff = diff;
+          counterpart = t;
+        }
+      }
       if (counterpart) {
         idsToUpdate.push(counterpart.id);
       }
@@ -422,18 +441,24 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     const transaction = transactions.find((t) => t.id === id);
 
     if (transaction?.is_transfer) {
-      const counterpart = transactions.find(
+      const candidates = transactions.filter(
         (t) =>
           t.id !== id &&
           t.is_transfer &&
           t.user_id === transaction.user_id &&
-          t.date === transaction.date &&
           Number(t.amount) === Number(transaction.amount) &&
-          t.title === transaction.title &&
-          t.note === transaction.note &&
           t.type !== transaction.type
       );
-
+      let counterpart: Transaction | undefined = undefined;
+      let minDiff = Infinity;
+      const txTime = new Date(transaction.date).getTime();
+      for (const t of candidates) {
+        const diff = Math.abs(new Date(t.date).getTime() - txTime);
+        if (diff < minDiff && diff < 1000 * 60 * 60 * 24) {
+          minDiff = diff;
+          counterpart = t;
+        }
+      }
       if (counterpart) {
         toDeleteIds.add(counterpart.id);
       }
@@ -525,6 +550,85 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     await fetchData();
   };
 
+  const updateTransfer = async (
+    fromTransactionId: string,
+    toTransactionId: string,
+    data: {
+      fromAccountId: string;
+      toAccountId: string;
+      amount: number;
+      title?: string;
+      note?: string;
+      date?: string;
+    }
+  ) => {
+    if (!user) return;
+
+    if (!fromTransactionId || !toTransactionId) {
+      handleError(new Error('Missing transfer transaction IDs.'), 'updating transfer');
+      return;
+    }
+
+    if (!data.fromAccountId || !data.toAccountId) {
+      handleError(new Error('Please select both source and destination accounts.'), 'updating transfer');
+      return;
+    }
+
+    if (data.fromAccountId === data.toAccountId) {
+      handleError(new Error('Source and destination accounts must be different.'), 'updating transfer');
+      return;
+    }
+
+    const normalizedAmount = Number(data.amount);
+    if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
+      handleError(new Error('Transfer amount must be greater than 0.'), 'updating transfer');
+      return;
+    }
+
+    const transferDate = data.date || new Date().toISOString();
+    if (!isValidTransactionDate(transferDate)) {
+      handleError(new Error('Please provide a valid transfer date.'), 'updating transfer');
+      return;
+    }
+
+    const sanitizedTitle = sanitizeText(data.title);
+    const transferTitle = sanitizedTitle
+      ? (sanitizedTitle.startsWith('[Transfer]') ? sanitizedTitle : `[Transfer] ${sanitizedTitle}`)
+      : '[Transfer]';
+    const transferNote = sanitizeText(data.note);
+
+    const { error: error1 } = await supabase
+      .from('transactions')
+      .update({
+        account_id: data.fromAccountId,
+        type: 'expense',
+        amount: normalizedAmount,
+        title: transferTitle,
+        note: transferNote,
+        date: transferDate,
+      })
+      .eq('id', fromTransactionId);
+
+    if (error1) return handleError(error1, 'updating transfer');
+
+    const { error: error2 } = await supabase
+      .from('transactions')
+      .update({
+        account_id: data.toAccountId,
+        type: 'income',
+        amount: normalizedAmount,
+        title: transferTitle,
+        note: transferNote,
+        date: transferDate,
+      })
+      .eq('id', toTransactionId);
+
+    if (error2) return handleError(error2, 'updating transfer');
+
+    handleSuccess('Transfer updated successfully');
+    await fetchData();
+  };
+
   // ==========================================
   // Render
   // ==========================================
@@ -555,6 +659,7 @@ export const FinanceProvider: React.FC<{ children: React.ReactNode }> = ({ child
     updateTransaction,
     deleteTransaction,
     addTransfer,
+    updateTransfer,
   };
 
   return <FinanceContext.Provider value={value}>{children}</FinanceContext.Provider>;
